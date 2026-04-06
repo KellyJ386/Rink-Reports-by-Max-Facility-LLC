@@ -14,7 +14,7 @@ import { trpc } from "@/lib/trpc";
  * an empty state. Never invent defaults.
  */
 export function useModuleConfig(module: string) {
-  const query = trpc.admin.getFacilityConfig.useQuery({ module });
+  const query = trpc.admin.getConfig.useQuery({ module });
 
   const config = useMemo<Record<string, unknown>>(() => {
     const out: Record<string, unknown> = {};

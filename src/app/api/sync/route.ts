@@ -13,15 +13,15 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
  * Per-module write handlers are added in their respective phases.
  */
 
-const PendingWrite = z.object({
-  id: z.string(),
-  module: z.string().min(1),
+const QueuedRecord = z.object({
+  localId: z.string().min(1),
+  table: z.string().min(1),
   payload: z.unknown(),
-  createdAt: z.number(),
+  retryCount: z.number().int().min(0),
 });
 
 const SyncBody = z.object({
-  writes: z.array(PendingWrite),
+  writes: z.array(QueuedRecord),
 });
 
 export async function POST(req: Request) {

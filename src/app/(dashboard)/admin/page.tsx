@@ -5,7 +5,7 @@ export default function AdminPage() {
       <p className="text-grey">
         Per-module configuration panels land in Phase 1. All values written
         here flow to <code>facility_config</code> via{" "}
-        <code>admin.upsertFacilityConfig</code>.
+        <code>admin.setConfig</code>.
       </p>
     </main>
   );

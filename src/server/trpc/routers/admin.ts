@@ -19,7 +19,7 @@ const ConfigKeyInput = z.object({
   key: z.string().min(1),
 });
 
-const UpsertConfigInput = ConfigKeyInput.extend({
+const SetConfigInput = ConfigKeyInput.extend({
   value: z.unknown(),
 });
 
@@ -29,7 +29,7 @@ export const adminRouter = router({
    * filtered to a single module. Empty array if nothing is set —
    * modules render an empty state in that case.
    */
-  getFacilityConfig: protectedProcedure
+  getConfig: protectedProcedure
     .input(z.object({ module: z.string().min(1).optional() }).optional())
     .query(async ({ ctx, input }) => {
       let query = ctx.supabase
@@ -52,8 +52,8 @@ export const adminRouter = router({
    * Upsert a single config row. Admin UI calls this for every
    * field on every panel. No bulk endpoint here — keep it simple.
    */
-  upsertFacilityConfig: protectedProcedure
-    .input(UpsertConfigInput)
+  setConfig: protectedProcedure
+    .input(SetConfigInput)
     .mutation(async ({ ctx, input }) => {
       const { error } = await ctx.supabase.from("facility_config").upsert({
         facility_id: ctx.facilityId,
