@@ -197,6 +197,16 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      known_modules: { Args: never; Returns: string[] }
+      list_facility_users: {
+        Args: never
+        Returns: {
+          email: string
+          full_name: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       user_role: "admin" | "manager" | "staff"
