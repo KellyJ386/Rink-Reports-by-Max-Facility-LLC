@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/*
+ * RinkReports brand tokens. CLAUDE.md is the source of truth.
+ * Tailwind v4 reads `@theme` to generate utility classes, so the
+ * names below produce e.g. `bg-navy`, `text-green`, `border-grey`.
+ *
+ * Note: `green`, `yellow`, `red`, `grey` intentionally override
+ * Tailwind's default palettes — modules must use the brand only.
+ */
+@theme {
+  --color-navy: #003B6F;
+  --color-green: #4DFF00;
+  --color-grey: #A5ACAF;
+  --color-yellow: #FFB800;
+  --color-red: #F42A2A;
+  --color-darkbg: #001122;
+}
+
+:root {
+  --background: var(--color-darkbg);
+  --foreground: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
