@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { trpc } from "@/lib/trpc";
 import { db, type QueuedRecord } from "@/lib/offline/db";
@@ -9,20 +9,34 @@ import {
   type Checklist,
   type DailyReportAnswers,
 } from "@/modules/daily-reports/schema";
+import { useOfflineQuery } from "@/hooks/useOfflineQuery";
+import type { RecentSubmission } from "@/server/trpc/routers/daily-reports";
 
 /**
  * Recent submissions panel for the active facility.
  *
- * Server rows come from `dailyReports.listRecent`. We additionally
- * read the local Dexie queue to surface anything that has been saved
- * locally but not yet acknowledged by the server. Pending rows get a
- * "Pending sync" badge so the user can see their work is captured
- * even before the network round-trip completes.
+ * DATA LAYER (refactored to use useOfflineQuery):
+ *   - Reads server-synced rows from the Dexie `dailyReports` cache via
+ *     `useOfflineQuery`. This follows the Dexie-first pattern (CLAUDE.md Rule 3):
+ *     the component is always backed by local data and the network pull is
+ *     an upgrade that happens in the background.
+ *   - The fetcher calls `dailyReports.pull` (the same pull procedure that
+ *     `usePullChannel` uses) to refresh the cache.
+ *   - When `isStale === true`, a small "cached" badge is shown next to the
+ *     heading so staff know they may be viewing older data.
+ *   - When `error !== null` AND the cache is empty, an error banner is shown
+ *     instead of the empty state.
  *
- * `dexie-react-hooks` is not in package.json, so we hand-roll a tiny
- * subscription: a 2-second interval plus a refresh on the `online`
- * event. The Dexie queue is small (one row per pending submission),
- * so this is cheap.
+ * PENDING QUEUE:
+ *   - In addition to the Dexie cache, we still read the local queue for
+ *     submissions that have been saved offline but not yet acknowledged.
+ *     These are shown with a "Pending sync" badge (unchanged from before).
+ *
+ * NOTE: `"dailyReports"` is the Dexie table name added by Agent 1
+ * (phase-b/dexie-schema). On this branch that table does not yet exist in
+ * the db.ts type, so we cast via `unknown` when passing the table name to
+ * `useOfflineQuery`. The cast is safe because `useOfflineQuery` already
+ * accesses Dexie through `(db as unknown as Record<...>)[table]`.
  */
 
 interface RecentSubmissionsProps {
@@ -58,7 +72,35 @@ function pendingRowsFromQueue(rows: QueuedRecord[]): PendingRow[] {
 }
 
 export function RecentSubmissions({ checklists }: RecentSubmissionsProps) {
-  const recent = trpc.dailyReports.listRecent.useQuery({ limit: 50 });
+  const utils = trpc.useUtils();
+
+  // Build a stable fetcher ref so useOfflineQuery sees a stable callback.
+  // Fetches the last 14 days of daily reports from the server.
+  const fetcher = useCallback(async (): Promise<RecentSubmission[]> => {
+    const since = new Date(
+      Date.now() - 14 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    return utils.dailyReports.pull.fetch({ since });
+  }, [utils]);
+
+  // 30-day cutoff for the local filter.
+  const thirtyDaysAgo = new Date(
+    Date.now() - 30 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const { data: serverRows, isLoading, isStale, error } = useOfflineQuery<RecentSubmission>({
+    // Agent 1 adds "dailyReports" to db.ts in phase-b/dexie-schema.
+    // Cast to bypass the current branch's keyof constraint.
+    table: "dailyReports" as unknown as keyof typeof db,
+    filter: (r: RecentSubmission) =>
+      (r.submitted_at ?? "") >= thirtyDaysAgo,
+    sort: (a: RecentSubmission, b: RecentSubmission) =>
+      (b.submitted_at ?? "").localeCompare(a.submitted_at ?? ""),
+    fetcher,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Pending queue — unsynced offline writes.
   const [pending, setPending] = useState<PendingRow[]>([]);
 
   useEffect(() => {
@@ -76,7 +118,7 @@ export function RecentSubmissions({ checklists }: RecentSubmissionsProps) {
 
     refresh();
     const id = window.setInterval(refresh, 2000);
-    const onOnline = () => refresh();
+    const onOnline = () => { void refresh(); };
     window.addEventListener("online", onOnline);
     return () => {
       cancelled = true;
@@ -85,11 +127,8 @@ export function RecentSubmissions({ checklists }: RecentSubmissionsProps) {
     };
   }, []);
 
-  // Build a name lookup. Items are not needed here — the panel only
-  // shows the checklist name + a timestamp + an answer count.
+  // Build a name lookup for checklist display.
   const nameById = new Map(checklists.map((c) => [c.id, c.name]));
-
-  const serverRows = recent.data ?? [];
 
   // Hide any server row whose local_id is still in the pending set,
   // so a row that races (server returns before the queue refresh)
@@ -99,7 +138,7 @@ export function RecentSubmissions({ checklists }: RecentSubmissionsProps) {
     (r) => !r.local_id || !pendingLocalIds.has(r.local_id),
   );
 
-  if (recent.isLoading) {
+  if (isLoading) {
     return (
       <section className="rounded-lg border border-grey/30 bg-darkbg/40 p-6">
         <h2 className="text-xl font-semibold text-white">Recent submissions</h2>
@@ -108,12 +147,12 @@ export function RecentSubmissions({ checklists }: RecentSubmissionsProps) {
     );
   }
 
-  if (recent.error) {
+  if (error !== null && dedupedServer.length === 0 && pending.length === 0) {
     return (
       <section className="rounded-lg border border-grey/30 bg-darkbg/40 p-6">
         <h2 className="text-xl font-semibold text-white">Recent submissions</h2>
         <p className="mt-2 text-sm text-red" role="alert">
-          {recent.error.message}
+          {error.message}
         </p>
       </section>
     );
@@ -123,7 +162,14 @@ export function RecentSubmissions({ checklists }: RecentSubmissionsProps) {
 
   return (
     <section className="rounded-lg border border-grey/30 bg-darkbg/40 p-6">
-      <h2 className="text-xl font-semibold text-white">Recent submissions</h2>
+      <div className="flex items-center gap-2">
+        <h2 className="text-xl font-semibold text-white">Recent submissions</h2>
+        {isStale && (
+          <span className="rounded border border-grey/40 px-1.5 py-0.5 text-xs text-grey">
+            cached
+          </span>
+        )}
+      </div>
 
       {isEmpty ? (
         <p className="mt-2 text-sm text-grey">
