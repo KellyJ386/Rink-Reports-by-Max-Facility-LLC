@@ -27,6 +27,46 @@ export interface RecentIncident {
 }
 
 export const incidentsRouter = router({
+  // -------------------------------------------------------------------
+  // Pull: sync recent incidents to the client's Dexie cache.
+  // Returns all rows with submitted_at >= input.since for this facility.
+  // -------------------------------------------------------------------
+  pull: protectedProcedure
+    .input(z.object({ since: z.string().datetime() }))
+    .query(async ({ ctx, input }): Promise<RecentIncident[]> => {
+      const { data, error } = await ctx.supabase
+        .from("incidents")
+        .select(
+          "id, kind, occurred_at, location, incident_type, description, data, submitted_at, submitted_by, local_id",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.since)
+        .order("submitted_at", { ascending: false });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      return (data ?? []).map((row) => {
+        const parsed = ReportInput.safeParse(row.data);
+        return {
+          id: row.id,
+          kind: row.kind === "accident" ? "accident" : "incident",
+          occurred_at: row.occurred_at,
+          location: row.location,
+          incident_type: row.incident_type,
+          description: row.description,
+          data: parsed.success ? parsed.data : null,
+          submitted_at: row.submitted_at,
+          submitted_by: row.submitted_by,
+          local_id: row.local_id,
+        };
+      });
+    }),
+
   listRecent: protectedProcedure
     .input(
       z.object({

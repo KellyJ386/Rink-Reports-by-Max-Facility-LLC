@@ -1,10 +1,18 @@
 import "server-only";
 
 import { initTRPC, TRPCError } from "@trpc/server";
+import * as Sentry from "@sentry/nextjs";
 
 import type { TRPCContext } from "@/server/trpc/context";
 
-const t = initTRPC.context<TRPCContext>().create();
+const t = initTRPC.context<TRPCContext>().create({
+  errorFormatter({ shape, error }) {
+    if (shape.data?.code === "INTERNAL_SERVER_ERROR") {
+      Sentry.captureException(error);
+    }
+    return shape;
+  },
+});
 
 export const router = t.router;
 export const publicProcedure = t.procedure;

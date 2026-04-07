@@ -106,18 +106,16 @@ src/
     useModuleConfig.ts   # reads facility_config — used everywhere
 
 ## Phase Gates
-### Phase 0 — Foundation (current)
-Supabase schema, tRPC, Auth, Dexie, Admin config API
-
-### Phase 1 — Admin Control Center UI
-Facility settings, module toggles, per-module config panels,
-user management
-
-### Phase 2 — Daily Reports + Ice Operations
-### Phase 3 — Refrigeration + Air Quality
-### Phase 4 — Ice Depth + Incidents
-### Phase 5 — Scheduling + Communications
-### Phase 6 — Platform (Stripe, HubSpot, multi-facility)
+### Phase A — Reality Reset & Hardening (current)
+Exit gates that MUST pass before any new module work resumes:
+- CI green: typecheck + lint + test all run on every PR
+- Test coverage: all module Zod schemas, `/api/sync` route,
+  tRPC auth/facility canaries, and `useModuleConfig` are
+  covered by tests
+- Layout components exist and render: `Header`, `Sidebar`,
+  `MobileNav`, `OfflineBanner`, `SyncStatus`
+- Sentry wired into the tRPC error formatter, `proxy.ts`,
+  and `/api/sync`
 
 ## Environment Variables Needed
 NEXT_PUBLIC_SUPABASE_URL
@@ -126,4 +124,28 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_TRPC_URL
 
 ## Current Phase
-PHASE 0 — Do not build module UI until Phase 0 exit gate passes.
+Phase A — Reality Reset & Hardening. No new module UI until
+every Phase A exit gate above is green.
+
+## CHANGELOG
+
+### 2026-04-07 — Phase A migration
+Phases 0 through 5 scaffolding has landed (Supabase schema,
+tRPC, Auth, Dexie, Admin config API; Admin Control Center UI;
+Daily Reports + Ice Operations; Refrigeration + Air Quality;
+Ice Depth + Incidents; Scheduling + Communications). Phase 6
+(Platform: Stripe, HubSpot, multi-facility) is partially
+started. The project is now entering Phase A — a reality reset
+focused on test coverage, CI, layout primitives, and Sentry
+instrumentation — before any further module work.
+
+Previous phase ladder, retained for history:
+- Phase 0 — Foundation: Supabase schema, tRPC, Auth, Dexie,
+  Admin config API
+- Phase 1 — Admin Control Center UI: facility settings,
+  module toggles, per-module config panels, user management
+- Phase 2 — Daily Reports + Ice Operations
+- Phase 3 — Refrigeration + Air Quality
+- Phase 4 — Ice Depth + Incidents
+- Phase 5 — Scheduling + Communications
+- Phase 6 — Platform (Stripe, HubSpot, multi-facility)

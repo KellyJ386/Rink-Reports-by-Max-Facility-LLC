@@ -31,6 +31,46 @@ export interface RecentRefrigerationReading {
 
 export const refrigerationRouter = router({
   // -------------------------------------------------------------------
+  // Pull: sync recent readings to the client's Dexie cache.
+  // Returns all rows with submitted_at >= input.since for this facility.
+  // -------------------------------------------------------------------
+  pull: protectedProcedure
+    .input(z.object({ since: z.string().datetime() }))
+    .query(
+      async ({ ctx, input }): Promise<RecentRefrigerationReading[]> => {
+        const { data, error } = await ctx.supabase
+          .from("refrigeration_readings")
+          .select(
+            "id, submitted_at, submitted_by, brine_supply, brine_return, brine_flow, ice_surface_temp, condenser_temp, compressor_readings, local_id",
+          )
+          .eq("facility_id", ctx.facilityId)
+          .gte("submitted_at", input.since)
+          .order("submitted_at", { ascending: false });
+
+        if (error) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: error.message,
+          });
+        }
+
+        return (data ?? []).map((row) => ({
+          id: row.id,
+          submitted_at: row.submitted_at,
+          submitted_by: row.submitted_by,
+          brine_supply: row.brine_supply,
+          brine_return: row.brine_return,
+          brine_flow: row.brine_flow,
+          ice_surface_temp: row.ice_surface_temp,
+          condenser_temp: row.condenser_temp,
+          compressor_readings: toCompressorReadings(row.compressor_readings),
+          local_id: row.local_id,
+        }));
+      },
+    ),
+
+
+  // -------------------------------------------------------------------
   // Active compressors only — staff form should hide retired units.
   // -------------------------------------------------------------------
   listCompressors: protectedProcedure.query(

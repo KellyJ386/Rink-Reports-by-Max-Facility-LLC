@@ -33,6 +33,51 @@ export interface RecentIceDepthSession {
 
 export const iceDepthRouter = router({
   // -------------------------------------------------------------------
+  // Pull: sync recent sessions to the client's Dexie cache.
+  // Returns all rows with submitted_at >= input.since for this facility.
+  // -------------------------------------------------------------------
+  pull: protectedProcedure
+    .input(z.object({ since: z.string().datetime() }))
+    .query(async ({ ctx, input }): Promise<RecentIceDepthSession[]> => {
+      const { data, error } = await ctx.supabase
+        .from("ice_depth_sessions")
+        .select(
+          "id, template_id, submitted_at, submitted_by, status, resurfacing_status, notes, measurements, local_id",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.since)
+        .order("submitted_at", { ascending: false });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      return (data ?? []).map((row) => {
+        const status = SessionStatus.safeParse(row.status);
+        const resurfacing = row.resurfacing_status
+          ? ResurfacingStatus.safeParse(row.resurfacing_status)
+          : { success: true as const, data: null };
+        return {
+          id: row.id,
+          template_id: row.template_id,
+          submitted_at: row.submitted_at,
+          submitted_by: row.submitted_by,
+          status: status.success ? status.data : "draft",
+          resurfacing_status: resurfacing.success
+            ? (resurfacing.data ?? null)
+            : null,
+          notes: row.notes,
+          measurements: toMeasurements(row.measurements),
+          local_id: row.local_id,
+        };
+      });
+    }),
+
+
+  // -------------------------------------------------------------------
   // Templates available to the staff form.
   // -------------------------------------------------------------------
   listTemplates: protectedProcedure.query(

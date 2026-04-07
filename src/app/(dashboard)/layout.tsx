@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { SignOutButton } from "@/app/(dashboard)/_components/SignOutButton";
+import { DashboardShell } from "@/app/(dashboard)/_components/DashboardShell";
+import type { NavItem } from "@/components/layout";
 
 /**
  * Server-side auth gate for every route in the (dashboard) group.
@@ -49,28 +51,42 @@ export default async function DashboardLayout({
     .eq("id", profile.facility_id)
     .maybeSingle();
 
+  // Phase A: nav items mirror the dashboard route folders. Module
+  // visibility (per facility_config) is enforced inside each module
+  // page, not in the chrome — keeping the shell purely presentational.
+  const navItems: NavItem[] = [
+    { label: "Dashboard", href: "/dashboard" },
+    { label: "Daily Reports", href: "/daily-reports" },
+    { label: "Ice Operations", href: "/ice-operations" },
+    { label: "Ice Depth", href: "/ice-depth" },
+    { label: "Refrigeration", href: "/refrigeration" },
+    { label: "Air Quality", href: "/air-quality" },
+    { label: "Incidents", href: "/incidents" },
+    { label: "Scheduling", href: "/scheduling" },
+    { label: "Communications", href: "/communications" },
+    { label: "Admin", href: "/admin" },
+  ];
+
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <header className="flex items-center justify-between border-b border-grey/30 bg-darkbg px-6 py-3">
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="text-lg font-semibold text-navy">
-            RinkReports
-          </Link>
-          {facility?.name && (
-            <span className="text-sm text-grey">{facility.name}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="hidden text-sm text-grey sm:inline">
-            {user.email}
-          </span>
-          <Link href="/admin" className="text-sm text-grey hover:text-white">
+    <DashboardShell
+      facilityName={facility?.name ?? ""}
+      userName={profile?.full_name ?? user.email ?? ""}
+      navItems={navItems}
+      syncStatus="synced"
+      pendingCount={0}
+      headerActions={
+        <>
+          <Link
+            href="/admin"
+            className="text-sm text-grey hover:text-white"
+          >
             Admin
           </Link>
           <SignOutButton />
-        </div>
-      </header>
-      <div className="flex-1">{children}</div>
-    </div>
+        </>
+      }
+    >
+      {children}
+    </DashboardShell>
   );
 }

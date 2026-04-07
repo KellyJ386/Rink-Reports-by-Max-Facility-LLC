@@ -27,6 +27,44 @@ export interface RecentAirQualityReading {
 }
 
 export const airQualityRouter = router({
+  // -------------------------------------------------------------------
+  // Pull: sync recent readings to the client's Dexie cache.
+  // Returns all rows with submitted_at >= input.since for this facility.
+  // -------------------------------------------------------------------
+  pull: protectedProcedure
+    .input(z.object({ since: z.string().datetime() }))
+    .query(async ({ ctx, input }): Promise<RecentAirQualityReading[]> => {
+      const { data, error } = await ctx.supabase
+        .from("air_quality_readings")
+        .select(
+          "id, submitted_at, submitted_by, co_ppm, no2_ppm, notes, tier, local_id",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.since)
+        .order("submitted_at", { ascending: false });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      return (data ?? []).map((row) => {
+        const tierParsed = TierSchema.safeParse(row.tier);
+        return {
+          id: row.id,
+          submitted_at: row.submitted_at,
+          submitted_by: row.submitted_by,
+          co_ppm: row.co_ppm,
+          no2_ppm: row.no2_ppm,
+          notes: row.notes,
+          tier: tierParsed.success ? tierParsed.data : "normal",
+          local_id: row.local_id,
+        };
+      });
+    }),
+
   listRecent: protectedProcedure
     .input(
       z.object({

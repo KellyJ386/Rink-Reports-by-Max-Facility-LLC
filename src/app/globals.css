@@ -20,6 +20,15 @@
 :root {
   --background: var(--color-darkbg);
   --foreground: #ffffff;
+
+  /* Brand tokens (CLAUDE.md). Mirror @theme palette under explicit
+   * --color-brand-* names so non-Tailwind consumers can reference them
+   * via var(...) without depending on the Tailwind utility layer. */
+  --color-brand-navy: #003B6F;
+  --color-brand-green: #4DFF00;
+  --color-brand-grey: #A5ACAF;
+  --color-brand-yellow: #FFB800;
+  --color-brand-red: #F42A2A;
 }
 
 @theme inline {

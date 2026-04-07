@@ -44,6 +44,40 @@ function toAnswers(value: unknown): DailyReportAnswers {
 
 export const dailyReportsRouter = router({
   // -------------------------------------------------------------------
+  // Pull: sync recent submissions to the client's Dexie cache.
+  // Returns all rows updated since `input.since` for offline replay.
+  // -------------------------------------------------------------------
+  pull: protectedProcedure
+    .input(z.object({ since: z.string().datetime() }))
+    .query(async ({ ctx, input }): Promise<RecentSubmission[]> => {
+      const { data, error } = await ctx.supabase
+        .from("daily_reports")
+        .select(
+          "id, checklist_id, submitted_at, submitted_by, answers, local_id",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.since)
+        .order("submitted_at", { ascending: false });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        checklist_id: row.checklist_id,
+        submitted_at: row.submitted_at,
+        submitted_by: row.submitted_by,
+        answers: toAnswers(row.answers),
+        local_id: row.local_id,
+      }));
+    }),
+
+
+  // -------------------------------------------------------------------
   // Read: all checklists for the caller's facility, with items nested.
   // Same query the admin sub-router uses, exposed under a non-admin
   // namespace so module code does not have to reach into `admin.*`.
