@@ -4,6 +4,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import * as Sentry from "@sentry/nextjs";
 
 import type { TRPCContext } from "@/server/trpc/context";
+import { canMutate } from "@/lib/auth/roles";
 
 const t = initTRPC.context<TRPCContext>().create({
   errorFormatter({ shape, error }) {
@@ -57,4 +58,28 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
       facilityId: ctx.facilityId,
     },
   });
+});
+
+/**
+ * Procedure that blocks mutations for viewer-role users.
+ *
+ * Extends `protectedProcedure`: all auth + facility checks still
+ * apply. In addition, any mutation attempted by a viewer is rejected
+ * with FORBIDDEN. Queries are allowed — viewers can read data.
+ *
+ * Use this on any router procedure that is exposed to viewer-role
+ * users but must not allow writes (e.g. alerts.list is a query and
+ * is fine; alerts.resolve is a mutation and must block viewers).
+ *
+ * Prefer `protectedProcedure` for procedures that viewers should
+ * never reach at all (admin, data-entry forms).
+ */
+export const viewerProcedure = protectedProcedure.use(({ ctx, next, type }) => {
+  if (type === "mutation" && !canMutate(ctx.role)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Viewer role cannot perform mutations",
+    });
+  }
+  return next({ ctx });
 });
