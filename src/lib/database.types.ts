@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      air_quality_readings: {
+        Row: {
+          co_ppm: number
+          created_at: string
+          facility_id: string
+          id: string
+          local_id: string | null
+          no2_ppm: number
+          notes: string | null
+          submitted_at: string
+          submitted_by: string
+          tier: string
+        }
+        Insert: {
+          co_ppm: number
+          created_at?: string
+          facility_id: string
+          id?: string
+          local_id?: string | null
+          no2_ppm: number
+          notes?: string | null
+          submitted_at?: string
+          submitted_by: string
+          tier: string
+        }
+        Update: {
+          co_ppm?: number
+          created_at?: string
+          facility_id?: string
+          id?: string
+          local_id?: string | null
+          no2_ppm?: number
+          notes?: string | null
+          submitted_at?: string
+          submitted_by?: string
+          tier?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "air_quality_readings_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_report_checklists: {
         Row: {
           created_at: string
@@ -228,6 +275,373 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "facility_modules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_depth_sessions: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          local_id: string | null
+          measurements: Json
+          notes: string | null
+          resurfacing_status: string | null
+          status: string
+          submitted_at: string
+          submitted_by: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          local_id?: string | null
+          measurements?: Json
+          notes?: string | null
+          resurfacing_status?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          local_id?: string | null
+          measurements?: Json
+          notes?: string | null
+          resurfacing_status?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_depth_sessions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ice_depth_sessions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "ice_depth_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_depth_templates: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          points: Json
+          position: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          points?: Json
+          position?: number
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          points?: Json
+          position?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_depth_templates_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_equipment: {
+        Row: {
+          active: boolean
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_equipment_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_operation_type_fields: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          operation_type_id: string
+          options: Json | null
+          position: number
+          required: boolean
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          operation_type_id: string
+          options?: Json | null
+          position?: number
+          required?: boolean
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          operation_type_id?: string
+          options?: Json | null
+          position?: number
+          required?: boolean
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_operation_type_fields_operation_type_id_fkey"
+            columns: ["operation_type_id"]
+            isOneToOne: false
+            referencedRelation: "ice_operation_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_operation_types: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_operation_types_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_operations: {
+        Row: {
+          answers: Json
+          created_at: string
+          equipment_id: string
+          facility_id: string
+          id: string
+          local_id: string | null
+          operation_type_id: string
+          submitted_at: string
+          submitted_by: string
+        }
+        Insert: {
+          answers: Json
+          created_at?: string
+          equipment_id: string
+          facility_id: string
+          id?: string
+          local_id?: string | null
+          operation_type_id: string
+          submitted_at?: string
+          submitted_by: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          equipment_id?: string
+          facility_id?: string
+          id?: string
+          local_id?: string | null
+          operation_type_id?: string
+          submitted_at?: string
+          submitted_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_operations_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "ice_equipment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ice_operations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ice_operations_operation_type_id_fkey"
+            columns: ["operation_type_id"]
+            isOneToOne: false
+            referencedRelation: "ice_operation_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      refrigeration_compressors: {
+        Row: {
+          active: boolean
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refrigeration_compressors_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      refrigeration_readings: {
+        Row: {
+          brine_flow: number | null
+          brine_return: number | null
+          brine_supply: number | null
+          compressor_readings: Json
+          condenser_temp: number | null
+          created_at: string
+          facility_id: string
+          ice_surface_temp: number | null
+          id: string
+          local_id: string | null
+          submitted_at: string
+          submitted_by: string
+        }
+        Insert: {
+          brine_flow?: number | null
+          brine_return?: number | null
+          brine_supply?: number | null
+          compressor_readings?: Json
+          condenser_temp?: number | null
+          created_at?: string
+          facility_id: string
+          ice_surface_temp?: number | null
+          id?: string
+          local_id?: string | null
+          submitted_at?: string
+          submitted_by: string
+        }
+        Update: {
+          brine_flow?: number | null
+          brine_return?: number | null
+          brine_supply?: number | null
+          compressor_readings?: Json
+          condenser_temp?: number | null
+          created_at?: string
+          facility_id?: string
+          ice_surface_temp?: number | null
+          id?: string
+          local_id?: string | null
+          submitted_at?: string
+          submitted_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refrigeration_readings_facility_id_fkey"
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"

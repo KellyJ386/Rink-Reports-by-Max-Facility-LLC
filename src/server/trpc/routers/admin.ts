@@ -5,6 +5,10 @@ import { z } from "zod";
 
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 import { dailyReportsAdminRouter } from "@/server/trpc/routers/daily-reports-admin";
+import { iceOperationsAdminRouter } from "@/server/trpc/routers/ice-operations-admin";
+import { refrigerationAdminRouter } from "@/server/trpc/routers/refrigeration-admin";
+import { airQualityAdminRouter } from "@/server/trpc/routers/air-quality-admin";
+import { iceDepthAdminRouter } from "@/server/trpc/routers/ice-depth-admin";
 
 /**
  * Admin Control Center API.
@@ -329,4 +333,34 @@ export const adminRouter = router({
    * here so the top-level admin router stays tidy.
    */
   dailyReports: dailyReportsAdminRouter,
+
+  /**
+   * Ice Operations admin sub-router. Lives in
+   * src/server/trpc/routers/ice-operations-admin.ts.
+   *
+   * Client calls: trpc.admin.iceOperations.listOperationTypes.useQuery()
+   * and friends. Manages operation types, their fields, and equipment.
+   */
+  iceOperations: iceOperationsAdminRouter,
+
+  /**
+   * Refrigeration admin sub-router. Mounted as
+   * `admin.refrigeration`. Manages compressors and the threshold map
+   * for facility-specific normal operating ranges.
+   */
+  refrigeration: refrigerationAdminRouter,
+
+  /**
+   * Air Quality admin sub-router. Mounted as `admin.airQuality`.
+   * Manages regulatory limits, working thresholds, and per-tier
+   * action protocol text.
+   */
+  airQuality: airQualityAdminRouter,
+
+  /**
+   * Ice Depth admin sub-router. Mounted as `admin.iceDepth`.
+   * Manages up to 8 measurement templates per facility, each with
+   * a unit ('in' or 'mm') and up to 60 numbered (x, y) points.
+   */
+  iceDepth: iceDepthAdminRouter,
 });

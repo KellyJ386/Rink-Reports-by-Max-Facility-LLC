@@ -2,9 +2,19 @@ import "server-only";
 
 import { router } from "@/server/trpc/trpc";
 import { adminRouter } from "@/server/trpc/routers/admin";
+import { dailyReportsRouter } from "@/server/trpc/routers/daily-reports";
+import { iceOperationsRouter } from "@/server/trpc/routers/ice-operations";
+import { refrigerationRouter } from "@/server/trpc/routers/refrigeration";
+import { airQualityRouter } from "@/server/trpc/routers/air-quality";
+import { iceDepthRouter } from "@/server/trpc/routers/ice-depth";
 
 export const appRouter = router({
   admin: adminRouter,
+  dailyReports: dailyReportsRouter,
+  iceOperations: iceOperationsRouter,
+  refrigeration: refrigerationRouter,
+  airQuality: airQualityRouter,
+  iceDepth: iceDepthRouter,
 });
 
 export type AppRouter = typeof appRouter;

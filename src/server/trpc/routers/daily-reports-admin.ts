@@ -6,7 +6,6 @@ import { z } from "zod";
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 import { requireAdmin } from "@/server/trpc/routers/admin";
 import {
-  ChecklistItemSchema,
   CreateChecklistInput,
   CreateItemInput,
   DeleteChecklistInput,
@@ -15,8 +14,8 @@ import {
   ReorderItemsInput,
   UpdateChecklistInput,
   UpdateItemInput,
+  toChecklistItem,
   type Checklist,
-  type ChecklistItem,
 } from "@/modules/daily-reports/schema";
 
 /**
@@ -32,33 +31,6 @@ import {
  *
  * Reads are scoped via Postgres RLS to the caller's facility.
  */
-
-function toChecklistItem(row: {
-  id: string;
-  checklist_id: string;
-  position: number;
-  label: string;
-  type: string;
-  required: boolean;
-  options: unknown;
-}): ChecklistItem {
-  // Narrow the `options` JSONB column to `string[] | null`. The SQL
-  // CHECK constraint guarantees the shape, but TypeScript sees `Json`
-  // so we validate at the boundary.
-  let options: string[] | null = null;
-  if (Array.isArray(row.options)) {
-    options = row.options.filter((v): v is string => typeof v === "string");
-  }
-  return ChecklistItemSchema.parse({
-    id: row.id,
-    checklist_id: row.checklist_id,
-    position: row.position,
-    label: row.label,
-    type: row.type,
-    required: row.required,
-    options,
-  });
-}
 
 export const dailyReportsAdminRouter = router({
   // -------------------------------------------------------------------

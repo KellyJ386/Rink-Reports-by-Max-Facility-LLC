@@ -123,3 +123,79 @@ export const ReorderItemsInput = z.object({
   checklist_id: z.string().uuid(),
   ids: z.array(z.string().uuid()).min(1),
 });
+
+// ---------------------------------------------------------------------
+// Submission schemas (staff-facing form → /api/sync → daily_reports)
+// ---------------------------------------------------------------------
+
+/**
+ * One answer cell. The shape is intentionally narrow:
+ *   - text / long_text / dropdown → string
+ *   - number                     → number
+ *   - checkbox                   → boolean
+ *   - any unanswered optional    → null
+ *
+ * Anything else is rejected at the sync boundary.
+ */
+export const AnswerValue = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+]);
+export type AnswerValue = z.infer<typeof AnswerValue>;
+
+/** Map of item.id (uuid) → answer value. */
+export const DailyReportAnswers = z.record(
+  z.string().uuid(),
+  AnswerValue,
+);
+export type DailyReportAnswers = z.infer<typeof DailyReportAnswers>;
+
+/**
+ * Payload pushed onto the Dexie queue and replayed by /api/sync.
+ * No facility_id, no submitted_by — both are resolved server-side
+ * from the authenticated session (CLAUDE.md Rule 1).
+ */
+export const DailyReportSubmissionInput = z.object({
+  local_id: z.string().uuid(),
+  checklist_id: z.string().uuid(),
+  submitted_at: z.string().datetime(),
+  answers: DailyReportAnswers,
+});
+export type DailyReportSubmissionInput = z.infer<
+  typeof DailyReportSubmissionInput
+>;
+
+// ---------------------------------------------------------------------
+// JSONB → ChecklistItem boundary helper
+// ---------------------------------------------------------------------
+
+/**
+ * Narrow a raw `daily_report_items` row (with `options: Json`) into a
+ * validated `ChecklistItem`. Used by both the admin sub-router and the
+ * staff-facing sub-router so the JSONB unwrapping lives in one place.
+ */
+export function toChecklistItem(row: {
+  id: string;
+  checklist_id: string;
+  position: number;
+  label: string;
+  type: string;
+  required: boolean;
+  options: unknown;
+}): ChecklistItem {
+  let options: string[] | null = null;
+  if (Array.isArray(row.options)) {
+    options = row.options.filter((v): v is string => typeof v === "string");
+  }
+  return ChecklistItemSchema.parse({
+    id: row.id,
+    checklist_id: row.checklist_id,
+    position: row.position,
+    label: row.label,
+    type: row.type,
+    required: row.required,
+    options,
+  });
+}

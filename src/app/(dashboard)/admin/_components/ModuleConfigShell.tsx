@@ -2,6 +2,10 @@
 
 import { trpc } from "@/lib/trpc";
 import { DailyReportsChecklistEditor } from "@/app/(dashboard)/admin/_components/DailyReportsChecklistEditor";
+import { IceOperationsConfigCard } from "@/app/(dashboard)/admin/_components/IceOperationsConfigCard";
+import { RefrigerationConfigCard } from "@/app/(dashboard)/admin/_components/RefrigerationConfigCard";
+import { AirQualityConfigCard } from "@/app/(dashboard)/admin/_components/AirQualityConfigCard";
+import { IceDepthConfigCard } from "@/app/(dashboard)/admin/_components/IceDepthConfigCard";
 
 /**
  * Per-module configuration shell.
@@ -14,6 +18,10 @@ import { DailyReportsChecklistEditor } from "@/app/(dashboard)/admin/_components
  */
 const PANELS: Record<string, () => React.JSX.Element> = {
   "daily-reports": DailyReportsChecklistEditor,
+  "ice-operations": IceOperationsConfigCard,
+  refrigeration: RefrigerationConfigCard,
+  "air-quality": AirQualityConfigCard,
+  "ice-depth": IceDepthConfigCard,
 };
 
 function moduleLabel(slug: string): string {
