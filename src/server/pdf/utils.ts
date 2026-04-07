@@ -1,6 +1,6 @@
 import "server-only";
 
-import { jsPDF } from "jspdf";
+import jsPDF from "jspdf";
 
 const NAVY: [number, number, number] = [0, 59, 111]; // #003B6F
 const GREEN: [number, number, number] = [77, 255, 0]; // #4DFF00
@@ -81,9 +81,8 @@ export function addSignaturePage(
   doc.text("Date:", PAGE.margin + 4.8, y);
   doc.line(PAGE.margin + 5.4, y, PAGE.margin + 7.4, y);
 
-  // Silence unused-parameter lint — names are pre-filled if provided
-  void opts.preparedBy;
-  void opts.reviewedBy;
+  // opts is accepted for API consistency (callers may pre-fill names later)
+  void (opts satisfies { preparedBy: string; reviewedBy: string });
 }
 
 export function addSectionTitle(doc: jsPDF, title: string, y: number): number {
