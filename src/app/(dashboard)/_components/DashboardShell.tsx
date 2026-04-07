@@ -8,6 +8,7 @@ import {
   Sidebar,
   MobileNav,
   OfflineBanner,
+  SyncProvider,
   type NavItem,
   type SyncStatusValue,
 } from "@/components/layout";
@@ -51,6 +52,7 @@ export function DashboardShell({
   const pathname = usePathname() ?? "";
 
   return (
+    <SyncProvider>
     <div className="flex min-h-full flex-1 flex-col">
       <OfflineBanner />
       <Header
@@ -75,5 +77,6 @@ export function DashboardShell({
         navItems={navItems}
       />
     </div>
+    </SyncProvider>
   );
 }

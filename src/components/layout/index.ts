@@ -7,3 +7,4 @@ export type { MobileNavProps } from "./MobileNav";
 export { OfflineBanner } from "./OfflineBanner";
 export { SyncStatus } from "./SyncStatus";
 export type { SyncStatusProps } from "./SyncStatus";
+export { SyncProvider } from "./SyncProvider";
