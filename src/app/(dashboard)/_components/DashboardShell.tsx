@@ -11,6 +11,7 @@ import {
   type NavItem,
   type SyncStatusValue,
 } from "@/components/layout";
+import { ToastHost } from "@/components/ui/ToastHost";
 
 export type DashboardShellProps = {
   facilityName: string;
@@ -74,6 +75,7 @@ export function DashboardShell({
         onClose={() => setMobileNavOpen(false)}
         navItems={navItems}
       />
+      <ToastHost />
     </div>
   );
 }
