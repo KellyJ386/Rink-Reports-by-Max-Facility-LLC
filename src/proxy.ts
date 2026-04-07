@@ -12,12 +12,34 @@ import * as Sentry from "@sentry/nextjs";
  *      to /login?next=<original-path>, and authenticated users away
  *      from /login back to /dashboard.
  *
- * The auth gate is also enforced server-side in (dashboard)/layout.tsx,
- * via tRPC `protectedProcedure`, and via Supabase RLS at the database.
- * That redundancy is intentional (CLAUDE.md Rule 8).
+ * Role-based routing (Phase C):
+ *   - viewer role → /dashboard routes redirect to /viewer/dashboard
+ *   - non-viewer role → /viewer routes redirect to /dashboard
+ *
+ * The auth gate is also enforced server-side in (dashboard)/layout.tsx
+ * and (viewer)/layout.tsx, via tRPC `protectedProcedure`, and via
+ * Supabase RLS at the database. That redundancy is intentional
+ * (CLAUDE.md Rule 8).
  */
 
-const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
+const PROTECTED_PREFIXES = ["/dashboard", "/admin", "/viewer"];
+
+/**
+ * Pure decision helper — extracted for unit-testability.
+ * Returns the URL to redirect to, or null if no redirect is needed.
+ */
+export function viewerRedirectPath(
+  pathname: string,
+  role: string | null | undefined,
+): string | null {
+  if (role === "viewer" && pathname.startsWith("/dashboard")) {
+    return "/viewer/dashboard";
+  }
+  if (role !== "viewer" && role !== null && role !== undefined && pathname.startsWith("/viewer")) {
+    return "/dashboard";
+  }
+  return null;
+}
 
 export async function proxy(request: NextRequest) {
   try {
@@ -71,6 +93,26 @@ export async function proxy(request: NextRequest) {
 
     if (pathname === "/login" && user) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    // Role-based routing: fetch the user's role and redirect accordingly.
+    // Only do this lookup when the user is authenticated and the path is
+    // one that may need role enforcement (/dashboard or /viewer).
+    if (
+      user &&
+      (pathname.startsWith("/dashboard") || pathname.startsWith("/viewer"))
+    ) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const role = profile?.role ?? null;
+      const redirectPath = viewerRedirectPath(pathname, role);
+      if (redirectPath) {
+        return NextResponse.redirect(new URL(redirectPath, request.url));
+      }
     }
 
     return response;

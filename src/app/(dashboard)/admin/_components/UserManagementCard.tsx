@@ -168,7 +168,8 @@ function UserRow({
           >
             {ROLES.map((role) => (
               <option key={role} value={role}>
-                {role}
+                {/* Capitalize first letter; replace underscore with space */}
+                {role.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase())}
               </option>
             ))}
           </select>

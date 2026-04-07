@@ -64,7 +64,7 @@ const SetModuleEnabledInput = z.object({
 
 // 'super_admin' was added in migration 014. The platform treats it
 // as strictly more privileged than 'admin'.
-const UserRoleEnum = z.enum(["super_admin", "admin", "manager", "staff"]);
+const UserRoleEnum = z.enum(["super_admin", "admin", "manager", "staff", "viewer"]);
 
 const UpdateUserRoleInput = z.object({
   user_id: z.string().uuid(),
