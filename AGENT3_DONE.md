@@ -1,84 +1,73 @@
-# Phase B — Agent 3: useOfflineQuery
+# Phase C — Agent 3 Completion Marker
 
 ## Branch
-`phase-b/offline-query`
+`phase-c/notifications`
 
-## Worktree Path
-`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-a722c6f2`
+## Final SHA
+`91b8c36`
 
-## Commit SHAs
+## Worktree
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-a189b649`
 
-| Task | SHA | Message |
-|------|-----|---------|
-| Task 1 — hook | `725e7d2` | feat(offline): useOfflineQuery — Dexie-first with network upgrade |
-| Task 2 — Daily Reports | `af22e55` | feat(offline): apply useOfflineQuery to Daily Reports history |
-| Task 3 — Tests | `2c73ce0` | test: useOfflineQuery — Dexie hit, miss, fresh, offline, refetch |
-| Done marker | (this commit) | chore: phase-b agent 3 completion marker |
+## Task Statuses
 
-## Status
+| Task | Status | SHA |
+|------|--------|-----|
+| Task 1 — user_notification_prefs table + RLS | COMPLETE (by prior commit) | 27cb4ca |
+| Task 2 — Email / SMS / Push channel implementations | COMPLETE (by prior commit) | 6b30f40 |
+| Task 3 — Web push subscription endpoint + hook | COMPLETE | 14b3253 |
+| Task 4 — Fan-out service wired into anomaly cron | COMPLETE | af97310 |
+| Task 5 — Admin notification preferences UI | COMPLETE | f638248 |
+| Task 6 — Tests (fan-out + push subscribe) | COMPLETE | 91b8c36 |
 
-| Task | Status | Notes |
-|------|--------|-------|
-| Merge phase-b/pull-channel | Already merged (branch was already up to date) | No conflicts |
-| Task 1: useOfflineQuery hook | DONE | `src/hooks/useOfflineQuery.ts` — committed at `725e7d2` |
-| Task 2: Daily Reports refactor | DONE | `src/modules/daily-reports/components/RecentSubmissions.tsx` |
-| Task 3: Tests | DONE | `src/test/hooks/useOfflineQuery.test.ts` — all 5 tests pass |
+## Files Created / Modified
 
-## Task 1 Notes
+### Migrations
+- `supabase/migrations/017_notification_prefs.sql` — user_notification_prefs table + RLS
+- `supabase/migrations/018_push_subscriptions.sql` — push_subscriptions table + RLS
 
-`useOfflineQuery.ts` was already present and committed at `725e7d2` (carried over from
-a prior run). The implementation matches the spec exactly:
-- `useLiveQuery` for live Dexie reads
-- `filter` + optional `sort` in `useMemo`
-- `lastFetchedAt` state drives `isStale`
-- `isLoading` = `rawLive === undefined OR (empty AND not fetched AND no error)`
-- On mount + refetch: calls fetcher, `bulkPut`s results, captures errors silently
-- AbortController prevents stale state updates after unmount
-- `reportError` dynamically imports Sentry (fire-and-forget)
+### Server — notification channels
+- `src/server/notifications/email.ts` — Resend email with branded HTML template
+- `src/server/notifications/sms.ts` — Twilio SMS
+- `src/server/notifications/push.ts` — web-push with VAPID
+- `src/server/notifications/fanout.ts` — fan-out dispatcher (fire-and-forget, allSettled)
 
-`dexie-react-hooks@^1.1.7` was in `package.json` but not yet installed in this
-worktree's `node_modules`. `npm install` was run to make the package available
-for tests and runtime use.
+### Server — tRPC
+- `src/server/trpc/routers/notifications.ts` — getNotificationPrefs + upsertNotificationPrefs
+- `src/server/trpc/routers/index.ts` — registered notificationsRouter
 
-## Task 2 Notes: Daily Reports Refactor Strategy
+### Server — anomaly
+- `src/server/anomaly/persist.ts` — extended PersistResult with insertedAlerts
 
-### Component examined
-`src/modules/daily-reports/components/RecentSubmissions.tsx`
+### Cron
+- `src/app/api/cron/anomaly-scan/route.ts` — wired fanOutAlert per new alert
 
-This is a `"use client"` component — no wrapping was needed. It was refactored
-in place.
+### Push subscription API
+- `src/app/api/push/subscribe/route.ts` — POST handler; validates, resolves facilityId, upserts
 
-### What changed
-- Removed `trpc.dailyReports.listRecent.useQuery()` direct usage.
-- Added `useOfflineQuery<RecentSubmission>` with:
-  - `table: "dailyReports" as unknown as keyof typeof db` (cast required because
-    Agent 1's table additions live on `phase-b/dexie-schema` and are not yet merged
-    into this branch's `db.ts`)
-  - `filter`: 30-day ISO string cutoff on `submitted_at`
-  - `sort`: descending by `submitted_at` using `localeCompare`
-  - `fetcher`: calls `utils.dailyReports.pull.fetch({ since })` (same pattern as
-    `usePullChannel`) for the last 14 days
-  - `staleTime`: 5 minutes (default)
-- Added `isStale` badge ("cached" in grey) next to the heading.
-- Added error banner (only shown when `error !== null` AND both `data` and `pending`
-  are empty — cached data is still rendered otherwise).
-- Kept the `isLoading` spinner unchanged.
-- Kept the pending queue (Dexie queue polling) entirely unchanged.
+### Hooks
+- `src/hooks/usePushSubscription.ts` — subscribe/unsubscribe with VAPID + SW registration
 
-### Why the cast is needed
-`DexieTable = keyof typeof db` on this branch resolves to `"queue" | "cachedConfig"`.
-Agent 1's `dailyReports` table is declared on `phase-b/dexie-schema`. The cast
-`"dailyReports" as unknown as keyof typeof db` is safe at runtime because
-`useOfflineQuery` already accesses the table via `(db as unknown as Record<...>)[table]`.
-Type safety is enforced at the call site through `OfflineQueryOptions<RecentSubmission>`.
+### UI
+- `src/app/(dashboard)/admin/_components/NotificationPrefsCard.tsx` — full preferences card
+- `src/app/(dashboard)/admin/page.tsx` — NotificationPrefsCard wired in
 
-## Task 3 Notes: Test Implementation
+### Types
+- `src/lib/offline/types.ts` — NotificationPrefs type (already present from prior commit)
 
-All 5 tests pass. Key mock strategy:
-- `useLiveQuery` is mocked via `vi.mock("dexie-react-hooks")` — the mock calls the
-  querier function (to register the subscription) then immediately returns the
-  configured data array.
-- `db.dailyReports.bulkPut` is spied on to verify upsert calls.
-- Test 4 generates expected `console.error` output (the Sentry capture path) — this is
-  correct behavior, not a test failure.
-- Test 2 uses a manually-resolved Promise to test the pending-fetch loading state.
+### Tests
+- `src/test/notifications/fanout.test.ts` — 6 tests
+- `src/test/notifications/push.subscribe.test.ts` — 4 tests
+- `src/test/anomaly/persist.test.ts` — updated for insertedAlerts shape
+- `src/test/anomaly/cron.route.test.ts` — updated mocks (insertedAlerts, fanout mock)
+
+## Test Results
+115 tests passing across 20 test files. No regressions.
+
+## Key Design Decisions
+- `fanOutAlert` returns early for info severity (UI-only per spec)
+- `Promise.allSettled` used for both per-channel and per-facility isolation
+- facility_id always resolved server-side from user_profiles (CLAUDE.md Rule 1)
+- Push subscribe endpoint uses service-role client for the UPSERT to handle
+  the ON CONFLICT path without requiring the user to have UPDATE permission
+- VAPID key generation instructions are code comments only — never hardcoded
