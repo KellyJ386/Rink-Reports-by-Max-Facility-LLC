@@ -1,6 +1,14 @@
 "use client";
 
 import Dexie, { type EntityTable } from "dexie";
+import type {
+  DailyReportCache,
+  IceOperationCache,
+  RefrigerationReadingCache,
+  AirQualityReadingCache,
+  IceDepthSessionCache,
+  IncidentCache,
+} from "./types";
 
 /**
  * Offline-first store. CLAUDE.md Rule 3:
@@ -52,12 +60,30 @@ export interface CachedConfigEntry {
 export class RinkReportsDB extends Dexie {
   queue!: EntityTable<QueuedRecord, "localId">;
   cachedConfig!: EntityTable<CachedConfigEntry, "key">;
+  dailyReports!: EntityTable<DailyReportCache, "serverId">;
+  iceOperations!: EntityTable<IceOperationCache, "serverId">;
+  refrigerationReadings!: EntityTable<RefrigerationReadingCache, "serverId">;
+  airQualityReadings!: EntityTable<AirQualityReadingCache, "serverId">;
+  iceDepthSessions!: EntityTable<IceDepthSessionCache, "serverId">;
+  incidents!: EntityTable<IncidentCache, "serverId">;
 
   constructor() {
     super("rink-reports");
     this.version(1).stores({
       queue: "localId, table, syncedAt, retryCount",
       cachedConfig: "key, module, updatedAt",
+    });
+    this.version(2).stores({
+      dailyReports: "&serverId, facilityId, reportDate, submittedAt, tabName",
+      iceOperations:
+        "&serverId, facilityId, operationDate, submittedAt, operationType",
+      refrigerationReadings:
+        "&serverId, facilityId, readingDate, submittedAt, shiftLabel",
+      airQualityReadings: "&serverId, facilityId, readingDate, submittedAt",
+      iceDepthSessions:
+        "&serverId, facilityId, sessionDate, submittedAt, templateId",
+      incidents:
+        "&serverId, facilityId, incidentDate, submittedAt, incidentType",
     });
   }
 }
