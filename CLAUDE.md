@@ -120,11 +120,22 @@ src/
 - Sync UX: live `useSyncStatus`, `rr:sync-ack` event, toast on drain, responsive badge
 - /api/sync refactored to thin dispatcher + per-table handler registry
 
-### Phase C — Insight Layer (next)
-- Trends dashboards per module
-- Server-side anomaly detection + alerts table
-- Notifications fan-out (email/SMS/web push)
-- Read-only owner/GM dashboards
+### Phase C — Insight Layer (complete)
+- analyticsRouter + 5 trend procedures (air quality, refrigeration, ice depth, incidents, daily report completion)
+- LineChart, HeatmapGrid, BarChart, CompletionRing components (recharts)
+- /(dashboard)/insights page with 7/30/90-day toggle
+- alerts table + RLS + 4 detectors (refrigeration drift, missed reports, AQ escalation, ice depth thin spots)
+- /api/cron/anomaly-scan hourly Vercel cron
+- alertsRouter (list + resolve)
+- Notifications: email (Resend), SMS (Twilio), web push (web-push) + fan-out service wired into cron
+- user_notification_prefs + push_subscriptions tables + admin UI card
+- viewer role: route group, role guard utility, viewerProcedure middleware, proxy redirect
+
+### Phase D — Compliance & Exports (next)
+- Branded PDF exports per module
+- CSV / XLSX exports
+- Predefined regulatory report packs (OSHA 300/300A, EPA RMP, USA Hockey, monthly board pack)
+- Retention policy + nightly archive sweep
 
 ## Environment Variables Needed
 NEXT_PUBLIC_SUPABASE_URL
@@ -133,12 +144,30 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_TRPC_URL
 
 ## Current Phase
-Phase B complete; Phase C ready. The app is now offline-first
-across all 6 module read caches, with PWA install + offline
-fallback, live sync UX, and a maintainable sync dispatcher.
-Next work belongs in Phase C (Insight Layer).
+Phase C complete; Phase D ready. The platform now ships an
+operational insights dashboard, server-side anomaly detection
+with hourly Vercel cron, multi-channel notification fan-out
+(email + SMS + push), an alerts table + tRPC router, and a
+read-only viewer role with its own route group. Next work
+belongs in Phase D (Compliance & Exports).
 
 ## CHANGELOG
+
+### 2026-04-07 — Phase C complete (Insight Layer)
+4 specialist agents merged. analyticsRouter shipped 5 trend
+procedures used by an Operational Insights page (recharts:
+LineChart, HeatmapGrid, BarChart, CompletionRing). Server-side
+anomaly detection: 4 detectors (refrigeration drift, missed
+daily reports, air quality escalation, ice depth thin spots),
+deduped persistence into a new `alerts` table, hourly Vercel
+cron at /api/cron/anomaly-scan, alertsRouter (list + resolve).
+Notifications: Resend email, Twilio SMS, web-push + VAPID; new
+`user_notification_prefs` and `push_subscriptions` tables; fan-out
+wired into the cron with Promise.allSettled isolation. Viewer
+role: route group at /(viewer), role guard utility, viewerProcedure
+middleware, proxy redirect, role added to TRPCContext, viewer
+option in admin user management. Tests: 158 passing across 24
+files; typecheck clean. See PHASE_C_COMPLETE.md for details.
 
 ### 2026-04-07 — Phase B complete (Truly Offline-First)
 6 specialist agents merged. Dexie schema extended to version 2
