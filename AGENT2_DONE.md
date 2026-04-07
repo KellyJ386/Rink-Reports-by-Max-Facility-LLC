@@ -1,84 +1,97 @@
-# Agent 2 — Test Scaffolding — Phase A Completion
+# Phase B — Agent 2 (Pull Channel) Completion Marker
 
-Branch: `phase-a/tests`
-Worktree: `/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-ac51c0cb`
+## Branch
+`phase-b/pull-channel`
 
-## Task status
+## Worktree path
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-aa2b2db9`
 
-### Task 4 — Vitest + Testing Library setup — DONE
-- `package.json` devDependencies updated (already present on branch).
-- `vitest.config.ts` created (jsdom, v8 coverage, `@` and `server-only` aliases).
-- `src/test/setup.ts` imports `@testing-library/jest-dom/vitest`.
-- Stub `src/test/stubs/server-only.ts` added so router files importing `"server-only"` load cleanly under jsdom.
-- Commit: `e4c9bfb` (initial scaffold) + alias additions in `d457631`.
+## Task Status
 
-### Task 5 — Schema tests — DONE
-Found 8 schemas under `src/modules/*/schema.ts`:
-- air-quality, daily-reports, ice-depth, ice-operations, refrigeration (test files were already present on the branch when this agent started)
-- communications, incidents, scheduling (added by this agent)
+### Task 1 — tRPC pull procedures for all 6 modules
+**STATUS: COMPLETE**
+Commit: `47ba327`
 
-No `src/lib/schemas/` or `src/schemas/` directories exist.
+All 6 routers have a `pull` query:
+- `src/server/trpc/routers/daily-reports.ts` — `submitted_at >= since`
+- `src/server/trpc/routers/ice-operations.ts` — `submitted_at >= since`
+- `src/server/trpc/routers/refrigeration.ts` — `submitted_at >= since`
+- `src/server/trpc/routers/air-quality.ts` — `submitted_at >= since`
+- `src/server/trpc/routers/ice-depth.ts` — `submitted_at >= since`
+- `src/server/trpc/routers/incidents.ts` — `submitted_at >= since`
 
-Each test file:
-- imports the main exported Zod schemas
-- has at least one valid-input parse assertion
-- has at least two invalid-input `toThrow()` assertions
-- exercises an optional/defaulted field where the schema has one
+Each uses `protectedProcedure`, filters by `ctx.facilityId` (Rule 1 + 8),
+and returns raw rows without reshaping. All tables exist in Supabase (no
+stubs needed).
 
-Commit: `acfa972`
+### Task 2 — usePullChannel hook
+**STATUS: COMPLETE**
+Commit: `84f653b`
 
-### Task 6 — Sync route tests — DONE
-File: `src/test/api/sync.test.ts`
+Files:
+- `src/lib/offline/types.ts` — six cached-read interfaces
+  (`CachedDailyReport`, `CachedIceOperation`, `CachedRefrigerationReading`,
+  `CachedAirQualityReading`, `CachedIceDepthSession`, `CachedIncident`)
+- `src/hooks/usePullChannel.ts` — the hook itself
 
-Covers:
-1. unauthenticated → 401
-2. authenticated, no `facility_id` → 403
-3. idempotent replay: dup-key insert returns existing `serverId` (uses `daily_reports` as the simplest table)
-4. unknown table → result row with `error: "unknown table: ..."`, no 500
+Key design decisions:
+- `trpc.useUtils()` is stored in a ref (`utilsRef`) so `pullAll` has an
+  empty dependency array — avoids infinite re-render loop from the
+  `useCallback` + `useEffect` dependency chain.
+- Six sequential module pulls each in their own try/catch.
+- AbortController wired to mount/unmount effect.
+- Online event debounced 2000ms via `setTimeout` ref.
+- db table casts through `unknown` since Agent 1's Dexie migration adds
+  the module tables in parallel; the runtime will error if tables are
+  missing, which is correct behaviour.
 
-`@/lib/supabase-server` is mocked with a per-table chain factory so each test can shape the chain returned by `supabase.from(<table>)`.
+### Task 3 — SyncContext + wire into layout
+**STATUS: COMPLETE**
+Commit: `8fcee83`
 
-Commit: `1ee8a85`
+Files:
+- `src/context/SyncContext.tsx` — `SyncContext` + `useSyncContext()` helper
+- `src/components/layout/SyncProvider.tsx` — calls `usePullChannel()`,
+  provides values; `pendingCount` defaults to 0 (Agent 5 replaces)
+- `src/components/layout/index.ts` — `SyncProvider` exported
+- `src/app/(dashboard)/_components/DashboardShell.tsx` — children wrapped
+  in `<SyncProvider>`
 
-### Task 7 — tRPC canary tests — DONE
-File: `src/test/trpc/auth-canary.test.ts` (single file iterating per the task description)
+### Task 4 — Tests
+**STATUS: COMPLETE — all 4 tests pass (79 total, 0 failures)**
+Commit: `2fe6ce5`
 
-Mocks:
-- `@/lib/supabase-server`, `@/lib/supabase`, `@/lib/hubspot`, `@/lib/stripe`, `next/headers`
-- `server-only` aliased to a stub via vitest config
+File: `src/test/hooks/usePullChannel.test.ts`
 
-Iterates one query per top-level router in `appRouter`:
-admin.me, dailyReports.listChecklists, iceOperations.listOperationTypes, refrigeration.listCompressors, airQuality.listRecent, iceDepth.listTemplates, incidents.listRecent, scheduling.listRoster, communications.listInbox, onboarding.status, billing.getSubscription.
+Tests:
+1. Mount: all 6 pull.fetch called with since ~14 days ago (within 5s)
+2. Online event: after 2000ms debounce, pull fires again
+3. Upsert: pull results flow through adapters into db.<table>.bulkPut
+4. Failure isolation: one module throwing resets isPulling, sets error,
+   but the other 5 modules still complete their pulls
 
-Each call is invoked through `appRouter.createCaller(unauthedCtx)` and expected to throw a `TRPCError` with code in `{UNAUTHORIZED, FORBIDDEN, BAD_REQUEST}`. The widened code allow-list accommodates the case where input parsing runs before middleware in some tRPC versions; the canary still proves an unauthenticated caller cannot reach a resolver.
+Mocking strategy:
+- `@/lib/offline/db` mocked with per-table `bulkPut` vi.fn() spies
+- `@/lib/trpc` mocked with `useUtils()` returning per-module `pull.fetch`
+  vi.fn() stubs
 
-Commit: `d457631`
+SKIPPED:
+- Sentry dynamic import path is not tested — fire-and-forget side effect
+  that would require complex async module import mocking. Covered by
+  existing Phase A Sentry tRPC formatter tests.
 
-### Task 8 — useModuleConfig tests — DONE (with documented skip)
-File: `src/test/hooks/useModuleConfig.test.ts`
+## Commit SHAs (in order)
+1. `47ba327` — feat(pull): tRPC pull procedures for all 6 modules
+2. `84f653b` — feat(pull): usePullChannel hook — boot + online event pull
+3. `8fcee83` — feat(pull): wire usePullChannel into app layout via SyncProvider
+4. `2fe6ce5` — test: usePullChannel — mount, online event, upsert, failure isolation
+5. (this file) — chore: phase-b agent 2 completion marker
 
-The actual hook in `src/hooks/useModuleConfig.ts` is currently a thin wrapper around `trpc.admin.getConfig.useQuery({ module })`. It does NOT read or write Dexie and has no offline fallback path. The "cache hit / cache miss / offline fallback" sub-tests called for in the task spec therefore have nothing to assert against in the current implementation.
-
-SKIPPED sub-tests (with reason — the hook does not implement them yet):
-- cache hit (Dexie returns value, tRPC never called)
-- cache miss (Dexie empty, tRPC called, value written back to Dexie)
-- offline fallback (tRPC throws, last Dexie value returned)
-
-Sub-tests written instead, against the real shape of the hook:
-- flattens `[ { key, value } ]` rows into a `Record<key, value>` map
-- returns an empty object when the query has no data
-- propagates `isLoading` and `error` from the underlying query
-
-When the hook is upgraded to its Dexie-backed form, this test file should be replaced with the three offline sub-tests.
-
-Commit: `93b056f`
-
-## Files missing from the worktree
-None. All paths referenced by the task spec exist.
-
-## Commit history (this branch, newest first)
-- `93b056f` test: useModuleConfig cache hit, miss, offline fallback
-- `d457631` test: tRPC auth/facility-scoping canary tests
-- `1ee8a85` test: sync route — idempotency, dup-key, unknown table
-- `acfa972` test: Zod schema tests for all modules
-- `e4c9bfb` test: scaffold Vitest + Testing Library
+## Notes for downstream agents
+- `useSyncContext()` is available throughout the dashboard tree.
+  Import from `@/context/SyncContext`.
+- `pendingCount` in SyncContext is hardcoded to 0. Agent 5 should
+  replace this with a `useLiveQuery` on `db.queue.where('syncedAt').equals(0).count()`.
+- The six module Dexie tables are NOT yet in `src/lib/offline/db.ts`.
+  Agent 1 owns that migration. The hook casts through `unknown` at runtime.
+- `triggerPull()` is stable and safe to call from anywhere in the tree.
