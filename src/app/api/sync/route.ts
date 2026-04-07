@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import type { Json } from "@/lib/database.types";
@@ -47,6 +48,7 @@ interface SyncResultRow {
 }
 
 export async function POST(req: Request) {
+  try {
   const json: unknown = await req.json();
   const parsed = SyncBody.safeParse(json);
   if (!parsed.success) {
@@ -429,4 +431,11 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, results });
+  } catch (err) {
+    Sentry.captureException(err);
+    return NextResponse.json(
+      { ok: false, error: "Internal error" },
+      { status: 500 },
+    );
+  }
 }
