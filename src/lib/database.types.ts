@@ -190,30 +190,142 @@ export type Database = {
       }
       facilities: {
         Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          country: string
           created_at: string
           id: string
+          length_unit: string
           name: string
+          postal_code: string | null
           slug: string
+          state: string | null
+          temp_unit: string
           timezone: string
           updated_at: string
         }
         Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          country?: string
           created_at?: string
           id?: string
+          length_unit?: string
           name: string
+          postal_code?: string | null
           slug: string
+          state?: string | null
+          temp_unit?: string
           timezone?: string
           updated_at?: string
         }
         Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          country?: string
           created_at?: string
           id?: string
+          length_unit?: string
           name?: string
+          postal_code?: string | null
           slug?: string
+          state?: string | null
+          temp_unit?: string
           timezone?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      facility_branding: {
+        Row: {
+          accent_color: string
+          created_at: string
+          facility_id: string
+          logo_path: string | null
+          pdf_header_text: string | null
+          primary_color: string
+          secondary_color: string
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string
+          created_at?: string
+          facility_id: string
+          logo_path?: string | null
+          pdf_header_text?: string | null
+          primary_color?: string
+          secondary_color?: string
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string
+          created_at?: string
+          facility_id?: string
+          logo_path?: string | null
+          pdf_header_text?: string | null
+          primary_color?: string
+          secondary_color?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facility_branding_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: true
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      facility_shifts: {
+        Row: {
+          created_at: string
+          end_time: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facility_shifts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       facility_config: {
         Row: {
@@ -1171,6 +1283,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      is_admin_or_higher: { Args: never; Returns: boolean }
       is_manager_or_admin: { Args: never; Returns: boolean }
       known_modules: { Args: never; Returns: string[] }
       list_facility_users: {
@@ -1184,7 +1297,7 @@ export type Database = {
       }
     }
     Enums: {
-      user_role: "admin" | "manager" | "staff"
+      user_role: "super_admin" | "admin" | "manager" | "staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1312,7 +1425,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      user_role: ["admin", "manager", "staff"],
+      user_role: ["super_admin", "admin", "manager", "staff"],
     },
   },
 } as const

@@ -12,6 +12,8 @@ import { iceDepthAdminRouter } from "@/server/trpc/routers/ice-depth-admin";
 import { incidentsAdminRouter } from "@/server/trpc/routers/incidents-admin";
 import { schedulingAdminRouter } from "@/server/trpc/routers/scheduling-admin";
 import { communicationsAdminRouter } from "@/server/trpc/routers/communications-admin";
+import { shiftsAdminRouter } from "@/server/trpc/routers/shifts-admin";
+import { brandingAdminRouter } from "@/server/trpc/routers/branding-admin";
 
 /**
  * Admin Control Center API.
@@ -37,8 +39,22 @@ const SetConfigInput = ConfigKeyInput.extend({
 });
 
 const UpdateFacilityInput = z.object({
-  name: z.string().min(1).max(120),
-  timezone: z.string().min(1).max(64),
+  // Profile basics
+  name:           z.string().min(1).max(200),
+  timezone:       z.string().min(1).max(64),
+  // Address (every field optional so partial updates work)
+  address_line1:  z.string().max(200).nullable().optional(),
+  address_line2:  z.string().max(200).nullable().optional(),
+  city:           z.string().max(120).nullable().optional(),
+  state:          z.string().max(80).nullable().optional(),
+  postal_code:    z.string().max(20).nullable().optional(),
+  country:        z.string().min(1).max(8).optional(),
+  // Contact
+  contact_email:  z.string().email().max(200).nullable().optional(),
+  contact_phone:  z.string().max(40).nullable().optional(),
+  // Unit preferences
+  temp_unit:      z.enum(["f", "c"]).optional(),
+  length_unit:    z.enum(["in", "mm"]).optional(),
 });
 
 const SetModuleEnabledInput = z.object({
@@ -46,7 +62,9 @@ const SetModuleEnabledInput = z.object({
   enabled: z.boolean(),
 });
 
-const UserRoleEnum = z.enum(["admin", "manager", "staff"]);
+// 'super_admin' was added in migration 014. The platform treats it
+// as strictly more privileged than 'admin'.
+const UserRoleEnum = z.enum(["super_admin", "admin", "manager", "staff"]);
 
 const UpdateUserRoleInput = z.object({
   user_id: z.string().uuid(),
@@ -54,10 +72,12 @@ const UpdateUserRoleInput = z.object({
 });
 
 /**
- * Throws FORBIDDEN unless the caller's user_profiles.role is 'admin'
- * for their facility. Used by every mutation that touches facility
- * configuration or other users. Exported so per-module sub-routers
- * can reuse it.
+ * Throws FORBIDDEN unless the caller's user_profiles.role is at
+ * least 'admin' for their facility. After migration 014 the
+ * 'super_admin' role is also accepted (super_admin is strictly
+ * more privileged than admin). Used by every mutation that touches
+ * facility configuration or other users. Exported so per-module
+ * sub-routers can reuse it.
  */
 export async function requireAdmin(ctx: {
   supabase: import("@supabase/supabase-js").SupabaseClient<
@@ -77,7 +97,10 @@ export async function requireAdmin(ctx: {
       message: error.message,
     });
   }
-  if (!profile || profile.role !== "admin") {
+  if (
+    !profile ||
+    (profile.role !== "admin" && profile.role !== "super_admin")
+  ) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Admin role required",
@@ -148,13 +171,16 @@ export const adminRouter = router({
   // -------------------------------------------------------------------
 
   /**
-   * Return the caller's facility row (id, name, timezone).
-   * Used by FacilitySettingsCard.
+   * Return the caller's facility row with the full Facility Profile
+   * surface (address, contact, unit preferences). Used by the
+   * Facility Profile card in the Admin Control Center.
    */
   getFacility: protectedProcedure.query(async ({ ctx }) => {
     const { data, error } = await ctx.supabase
       .from("facilities")
-      .select("id, name, timezone")
+      .select(
+        "id, name, timezone, address_line1, address_line2, city, state, postal_code, country, contact_email, contact_phone, temp_unit, length_unit, updated_at",
+      )
       .eq("id", ctx.facilityId)
       .maybeSingle();
 
@@ -174,16 +200,33 @@ export const adminRouter = router({
   }),
 
   /**
-   * Update name and timezone on the caller's facility row.
-   * Admin only.
+   * Update the Facility Profile. Admin only. Every field except
+   * name + timezone is optional so the form can save partial
+   * updates without clobbering unrelated columns.
    */
   updateFacility: protectedProcedure
     .input(UpdateFacilityInput)
     .mutation(async ({ ctx, input }) => {
       await requireAdmin(ctx);
+
+      const patch: Record<string, unknown> = {
+        name: input.name,
+        timezone: input.timezone,
+      };
+      if (input.address_line1 !== undefined) patch.address_line1 = input.address_line1;
+      if (input.address_line2 !== undefined) patch.address_line2 = input.address_line2;
+      if (input.city          !== undefined) patch.city          = input.city;
+      if (input.state         !== undefined) patch.state         = input.state;
+      if (input.postal_code   !== undefined) patch.postal_code   = input.postal_code;
+      if (input.country       !== undefined) patch.country       = input.country;
+      if (input.contact_email !== undefined) patch.contact_email = input.contact_email;
+      if (input.contact_phone !== undefined) patch.contact_phone = input.contact_phone;
+      if (input.temp_unit     !== undefined) patch.temp_unit     = input.temp_unit;
+      if (input.length_unit   !== undefined) patch.length_unit   = input.length_unit;
+
       const { error } = await ctx.supabase
         .from("facilities")
-        .update({ name: input.name, timezone: input.timezone })
+        .update(patch)
         .eq("id", ctx.facilityId);
 
       if (error) {
@@ -416,4 +459,20 @@ export const adminRouter = router({
    * temperature unit (used by the Universal Module Header on PDFs).
    */
   communications: communicationsAdminRouter,
+
+  /**
+   * Shift Configuration sub-router (mounted as `admin.shifts`).
+   * Manages the facility-wide named shift catalog used by both
+   * Refrigeration and Scheduling — Admin Control Center spec
+   * section 9.
+   */
+  shifts: shiftsAdminRouter,
+
+  /**
+   * Branding & Display sub-router (mounted as `admin.branding`).
+   * Manages the facility logo (in the 'branding' Storage bucket),
+   * brand colors, and the optional PDF header override — Admin
+   * Control Center spec section 10.
+   */
+  branding: brandingAdminRouter,
 });
