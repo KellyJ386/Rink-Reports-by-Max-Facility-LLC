@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { protectedProcedure, router } from "@/server/trpc/trpc";
+import { dailyReportsAdminRouter } from "@/server/trpc/routers/daily-reports-admin";
 
 /**
  * Admin Control Center API.
@@ -48,9 +49,10 @@ const UpdateUserRoleInput = z.object({
 /**
  * Throws FORBIDDEN unless the caller's user_profiles.role is 'admin'
  * for their facility. Used by every mutation that touches facility
- * configuration or other users.
+ * configuration or other users. Exported so per-module sub-routers
+ * can reuse it.
  */
-async function requireAdmin(ctx: {
+export async function requireAdmin(ctx: {
   supabase: import("@supabase/supabase-js").SupabaseClient<
     import("@/lib/database.types").Database
   >;
@@ -313,4 +315,18 @@ export const adminRouter = router({
       }
       return { ok: true as const };
     }),
+
+  // -------------------------------------------------------------------
+  // Module sub-routers
+  // -------------------------------------------------------------------
+
+  /**
+   * Daily Reports admin sub-router. Lives in
+   * src/server/trpc/routers/daily-reports-admin.ts.
+   *
+   * Client calls: trpc.admin.dailyReports.listChecklists.useQuery()
+   * and friends. Each module phase mounts its own admin sub-router
+   * here so the top-level admin router stays tidy.
+   */
+  dailyReports: dailyReportsAdminRouter,
 });

@@ -14,6 +14,133 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_report_checklists: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_report_checklists_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_report_items: {
+        Row: {
+          checklist_id: string
+          created_at: string
+          id: string
+          label: string
+          options: Json | null
+          position: number
+          required: boolean
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          checklist_id: string
+          created_at?: string
+          id?: string
+          label: string
+          options?: Json | null
+          position?: number
+          required?: boolean
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          checklist_id?: string
+          created_at?: string
+          id?: string
+          label?: string
+          options?: Json | null
+          position?: number
+          required?: boolean
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_report_items_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "daily_report_checklists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_reports: {
+        Row: {
+          answers: Json
+          checklist_id: string
+          created_at: string
+          facility_id: string
+          id: string
+          local_id: string | null
+          submitted_at: string
+          submitted_by: string
+        }
+        Insert: {
+          answers: Json
+          checklist_id: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          local_id?: string | null
+          submitted_at?: string
+          submitted_by: string
+        }
+        Update: {
+          answers?: Json
+          checklist_id?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          local_id?: string | null
+          submitted_at?: string
+          submitted_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_reports_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "daily_report_checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_reports_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facilities: {
         Row: {
           created_at: string
