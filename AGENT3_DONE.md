@@ -1,43 +1,84 @@
-# Agent 3 (Components) — Phase A Completion
+# Phase B — Agent 3: useOfflineQuery
 
-Branch: `phase-a/components`
-Worktree: `/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-ac6f0a82`
+## Branch
+`phase-b/offline-query`
 
-## Task Status
+## Worktree Path
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-a722c6f2`
 
-### Task 9 — UI Component Library — DONE
-Commit: `38b2168` — `feat: Header, Sidebar, MobileNav, OfflineBanner, SyncStatus`
+## Commit SHAs
 
-Files:
-- `src/components/layout/Header.tsx` — props: facilityName, userName, syncStatus, pendingCount?, onMenuToggle. Logo text "RinkReports" (no `/public/logo.png` present, used text fallback in brand navy). Sync badge with green/yellow/red dots. Hamburger only below `lg:`.
-- `src/components/layout/Sidebar.tsx` — props: navItems, activePath. Hidden below `lg:`. Active items get `border-left: 3px solid var(--color-brand-green)` and a tinted green background.
-- `src/components/layout/MobileNav.tsx` — props: isOpen, onClose, navItems. Fixed full-screen overlay, slide-in panel via `translate-x`, backdrop click closes, item click calls onClose.
-- `src/components/layout/OfflineBanner.tsx` — internal `useOnlineStatus` hook. SSR-safe (initial state `true`). Returns `null` when online; sticky amber banner with white text when offline.
-- `src/components/layout/SyncStatus.tsx` — three states: pending+Retry / Synced HH:MM / Never synced.
-- `src/components/layout/index.ts` — re-exports all five plus types.
-- `src/components/ui/index.ts` — empty barrel `export {};`.
-- `src/app/globals.css` — added `--color-brand-*` tokens under `:root`. Tailwind v4 `@theme` palette already mirrored these via `--color-navy/green/grey/yellow/red`, so the brand-prefixed names are aliases for non-Tailwind `var(...)` consumers.
+| Task | SHA | Message |
+|------|-----|---------|
+| Task 1 — hook | `725e7d2` | feat(offline): useOfflineQuery — Dexie-first with network upgrade |
+| Task 2 — Daily Reports | `af22e55` | feat(offline): apply useOfflineQuery to Daily Reports history |
+| Task 3 — Tests | `2c73ce0` | test: useOfflineQuery — Dexie hit, miss, fresh, offline, refetch |
+| Done marker | (this commit) | chore: phase-b agent 3 completion marker |
 
-### Task 10 — Dashboard Layout Migration — DONE
-Commit: `68d00d5` — `refactor: migrate dashboard layout to component library`
+## Status
 
-Files:
-- `src/app/(dashboard)/_components/DashboardShell.tsx` (NEW, "use client") — owns mobile-menu state via `useState`, reads pathname via `usePathname`, renders `OfflineBanner + Header + (optional headerActions row) + Sidebar + main + MobileNav`. Accepts a `headerActions?: ReactNode` slot so the server layout can pass the existing Admin link + SignOutButton without DashboardShell knowing about auth.
-- `src/app/(dashboard)/layout.tsx` (REFACTORED) — keeps the server-side auth gate (user fetch, profile fetch, facility fetch, redirects). Builds `navItems` from the dashboard route folders (dashboard, daily-reports, ice-operations, ice-depth, refrigeration, air-quality, incidents, scheduling, communications, admin). Passes `syncStatus="synced"` and `pendingCount={0}` as plausible defaults — sync engine wiring is out of scope. Renders `<DashboardShell>` wrapping `{children}`.
+| Task | Status | Notes |
+|------|--------|-------|
+| Merge phase-b/pull-channel | Already merged (branch was already up to date) | No conflicts |
+| Task 1: useOfflineQuery hook | DONE | `src/hooks/useOfflineQuery.ts` — committed at `725e7d2` |
+| Task 2: Daily Reports refactor | DONE | `src/modules/daily-reports/components/RecentSubmissions.tsx` |
+| Task 3: Tests | DONE | `src/test/hooks/useOfflineQuery.test.ts` — all 5 tests pass |
 
-No page files were modified.
+## Task 1 Notes
 
-## Notes / Skipped
+`useOfflineQuery.ts` was already present and committed at `725e7d2` (carried over from
+a prior run). The implementation matches the spec exactly:
+- `useLiveQuery` for live Dexie reads
+- `filter` + optional `sort` in `useMemo`
+- `lastFetchedAt` state drives `isStale`
+- `isLoading` = `rawLive === undefined OR (empty AND not fetched AND no error)`
+- On mount + refetch: calls fetcher, `bulkPut`s results, captures errors silently
+- AbortController prevents stale state updates after unmount
+- `reportError` dynamically imports Sentry (fire-and-forget)
 
-- `/public/logo.png` does not exist, so Header uses the text fallback `"RinkReports"` in brand navy as instructed.
-- `npx tsc --noEmit` produced only environment errors (missing `node_modules` for `react`, `next`, etc. in this worktree). No structural / type errors specific to the new files.
-- Brand tokens `--color-brand-*` were already present as `--color-navy/green/grey/yellow/red` under Tailwind v4 `@theme`. I added the `--color-brand-*` aliases under `:root` per spec so components can use `var(--color-brand-green)` directly.
-- The original layout had an "Admin" link and "Sign out" button in its custom header. Header.tsx has no actions slot in its prop API, so I added a `headerActions` slot to `DashboardShell` and render it as a thin secondary bar beneath the Header. This preserves existing functionality without modifying Header's prop contract.
-- Branch `phase-a/components` already existed at session start; this run committed onto it (did not recreate).
+`dexie-react-hooks@^1.1.7` was in `package.json` but not yet installed in this
+worktree's `node_modules`. `npm install` was run to make the package available
+for tests and runtime use.
 
-## Commits (this session)
+## Task 2 Notes: Daily Reports Refactor Strategy
 
-```
-68d00d5 refactor: migrate dashboard layout to component library
-38b2168 feat: Header, Sidebar, MobileNav, OfflineBanner, SyncStatus
-```
+### Component examined
+`src/modules/daily-reports/components/RecentSubmissions.tsx`
+
+This is a `"use client"` component — no wrapping was needed. It was refactored
+in place.
+
+### What changed
+- Removed `trpc.dailyReports.listRecent.useQuery()` direct usage.
+- Added `useOfflineQuery<RecentSubmission>` with:
+  - `table: "dailyReports" as unknown as keyof typeof db` (cast required because
+    Agent 1's table additions live on `phase-b/dexie-schema` and are not yet merged
+    into this branch's `db.ts`)
+  - `filter`: 30-day ISO string cutoff on `submitted_at`
+  - `sort`: descending by `submitted_at` using `localeCompare`
+  - `fetcher`: calls `utils.dailyReports.pull.fetch({ since })` (same pattern as
+    `usePullChannel`) for the last 14 days
+  - `staleTime`: 5 minutes (default)
+- Added `isStale` badge ("cached" in grey) next to the heading.
+- Added error banner (only shown when `error !== null` AND both `data` and `pending`
+  are empty — cached data is still rendered otherwise).
+- Kept the `isLoading` spinner unchanged.
+- Kept the pending queue (Dexie queue polling) entirely unchanged.
+
+### Why the cast is needed
+`DexieTable = keyof typeof db` on this branch resolves to `"queue" | "cachedConfig"`.
+Agent 1's `dailyReports` table is declared on `phase-b/dexie-schema`. The cast
+`"dailyReports" as unknown as keyof typeof db` is safe at runtime because
+`useOfflineQuery` already accesses the table via `(db as unknown as Record<...>)[table]`.
+Type safety is enforced at the call site through `OfflineQueryOptions<RecentSubmission>`.
+
+## Task 3 Notes: Test Implementation
+
+All 5 tests pass. Key mock strategy:
+- `useLiveQuery` is mocked via `vi.mock("dexie-react-hooks")` — the mock calls the
+  querier function (to register the subscription) then immediately returns the
+  configured data array.
+- `db.dailyReports.bulkPut` is spied on to verify upsert calls.
+- Test 4 generates expected `console.error` output (the Sentry capture path) — this is
+  correct behavior, not a test failure.
+- Test 2 uses a manually-resolved Promise to test the pending-fetch loading state.
