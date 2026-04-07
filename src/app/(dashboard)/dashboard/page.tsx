@@ -23,6 +23,7 @@ const LIVE_MODULE_ROUTES = new Set<string>([
   "ice-operations",
   "refrigeration",
   "air-quality",
+  "ice-depth",
 ]);
 
 const MODULE_BLURBS: Record<string, string> = {

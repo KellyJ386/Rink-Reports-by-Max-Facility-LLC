@@ -12,6 +12,7 @@ import {
   ThresholdSet,
   computeTier,
 } from "@/modules/air-quality/schema";
+import { IceDepthSessionInput } from "@/modules/ice-depth/schema";
 
 /**
  * /api/sync — the only non-tRPC endpoint allowed for app data.
@@ -224,6 +225,94 @@ export async function POST(req: Request) {
           results.push({
             localId: w.localId,
             serverId: existing?.id ?? null,
+          });
+        } else {
+          results.push({ localId: w.localId, error: error.message });
+        }
+      } else {
+        results.push({ localId: w.localId, serverId: data.id });
+      }
+      continue;
+    }
+
+    if (w.table === "ice_depth_sessions") {
+      const payload = IceDepthSessionInput.safeParse(w.payload);
+      if (!payload.success) {
+        results.push({ localId: w.localId, error: "invalid payload" });
+        continue;
+      }
+
+      // Upsert path: a draft can be re-saved many times before the
+      // operator hits "Complete & Export". On the first save we
+      // INSERT; on subsequent saves we UPDATE the existing row by
+      // (facility_id, local_id). The DB freeze trigger refuses any
+      // UPDATE on a row whose existing status is 'completed', so a
+      // racing client cannot rewrite a finalized session.
+      const { data: existing } = await supabase
+        .from("ice_depth_sessions")
+        .select("id, status")
+        .eq("facility_id", facilityId)
+        .eq("local_id", payload.data.local_id)
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.status === "completed") {
+          // Treat as idempotent success — the client just needs the
+          // server id back so it can clear the queue entry.
+          results.push({ localId: w.localId, serverId: existing.id });
+          continue;
+        }
+
+        const { error } = await supabase
+          .from("ice_depth_sessions")
+          .update({
+            template_id: payload.data.template_id,
+            submitted_at: payload.data.submitted_at,
+            status: payload.data.status,
+            resurfacing_status: payload.data.resurfacing_status,
+            notes: payload.data.notes,
+            measurements: payload.data.measurements as unknown as Json,
+          })
+          .eq("id", existing.id);
+        if (error) {
+          results.push({ localId: w.localId, error: error.message });
+        } else {
+          results.push({ localId: w.localId, serverId: existing.id });
+        }
+        continue;
+      }
+
+      const { data, error } = await supabase
+        .from("ice_depth_sessions")
+        .insert({
+          facility_id: facilityId,
+          template_id: payload.data.template_id,
+          submitted_by: user.id,
+          submitted_at: payload.data.submitted_at,
+          status: payload.data.status,
+          resurfacing_status: payload.data.resurfacing_status,
+          notes: payload.data.notes,
+          measurements: payload.data.measurements as unknown as Json,
+          local_id: payload.data.local_id,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        const isDup = /duplicate key|unique/i.test(error.message);
+        if (isDup) {
+          // Racing replay: another POST already inserted this local_id
+          // between our maybeSingle() check above and the insert.
+          // Look it up and treat as success.
+          const { data: raced } = await supabase
+            .from("ice_depth_sessions")
+            .select("id")
+            .eq("facility_id", facilityId)
+            .eq("local_id", payload.data.local_id)
+            .maybeSingle();
+          results.push({
+            localId: w.localId,
+            serverId: raced?.id ?? null,
           });
         } else {
           results.push({ localId: w.localId, error: error.message });

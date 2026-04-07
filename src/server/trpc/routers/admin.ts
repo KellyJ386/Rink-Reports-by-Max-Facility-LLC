@@ -8,6 +8,7 @@ import { dailyReportsAdminRouter } from "@/server/trpc/routers/daily-reports-adm
 import { iceOperationsAdminRouter } from "@/server/trpc/routers/ice-operations-admin";
 import { refrigerationAdminRouter } from "@/server/trpc/routers/refrigeration-admin";
 import { airQualityAdminRouter } from "@/server/trpc/routers/air-quality-admin";
+import { iceDepthAdminRouter } from "@/server/trpc/routers/ice-depth-admin";
 
 /**
  * Admin Control Center API.
@@ -355,4 +356,11 @@ export const adminRouter = router({
    * action protocol text.
    */
   airQuality: airQualityAdminRouter,
+
+  /**
+   * Ice Depth admin sub-router. Mounted as `admin.iceDepth`.
+   * Manages up to 8 measurement templates per facility, each with
+   * a unit ('in' or 'mm') and up to 60 numbered (x, y) points.
+   */
+  iceDepth: iceDepthAdminRouter,
 });

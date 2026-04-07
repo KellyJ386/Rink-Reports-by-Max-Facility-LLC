@@ -282,6 +282,107 @@ export type Database = {
           },
         ]
       }
+      ice_depth_sessions: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          local_id: string | null
+          measurements: Json
+          notes: string | null
+          resurfacing_status: string | null
+          status: string
+          submitted_at: string
+          submitted_by: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          local_id?: string | null
+          measurements?: Json
+          notes?: string | null
+          resurfacing_status?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          local_id?: string | null
+          measurements?: Json
+          notes?: string | null
+          resurfacing_status?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_depth_sessions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ice_depth_sessions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "ice_depth_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_depth_templates: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          points: Json
+          position: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          points?: Json
+          position?: number
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          points?: Json
+          position?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_depth_templates_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ice_equipment: {
         Row: {
           active: boolean
