@@ -13,6 +13,7 @@ import {
   type SyncStatusValue,
 } from "@/components/layout";
 import { ToastHost } from "@/components/ui/ToastHost";
+import { InstallPrompt } from "@/components/ui/InstallPrompt";
 
 export type DashboardShellProps = {
   facilityName: string;
@@ -70,7 +71,10 @@ export function DashboardShell({
       )}
       <div className="flex flex-1">
         <Sidebar navItems={navItems} activePath={pathname} />
-        <main className="flex-1">{children}</main>
+        <main className="flex-1">
+          <InstallPrompt />
+          {children}
+        </main>
       </div>
       <MobileNav
         isOpen={mobileNavOpen}
