@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 import { dailyReportsAdminRouter } from "@/server/trpc/routers/daily-reports-admin";
+import { iceOperationsAdminRouter } from "@/server/trpc/routers/ice-operations-admin";
 
 /**
  * Admin Control Center API.
@@ -329,4 +330,13 @@ export const adminRouter = router({
    * here so the top-level admin router stays tidy.
    */
   dailyReports: dailyReportsAdminRouter,
+
+  /**
+   * Ice Operations admin sub-router. Lives in
+   * src/server/trpc/routers/ice-operations-admin.ts.
+   *
+   * Client calls: trpc.admin.iceOperations.listOperationTypes.useQuery()
+   * and friends. Manages operation types, their fields, and equipment.
+   */
+  iceOperations: iceOperationsAdminRouter,
 });

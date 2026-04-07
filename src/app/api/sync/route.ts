@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { DailyReportSubmissionInput } from "@/modules/daily-reports/schema";
+import { IceOperationSubmissionInput } from "@/modules/ice-operations/schema";
 
 /**
  * /api/sync — the only non-tRPC endpoint allowed for app data.
@@ -99,6 +100,49 @@ export async function POST(req: Request) {
         if (isDup) {
           const { data: existing } = await supabase
             .from("daily_reports")
+            .select("id")
+            .eq("facility_id", facilityId)
+            .eq("local_id", payload.data.local_id)
+            .maybeSingle();
+          results.push({
+            localId: w.localId,
+            serverId: existing?.id ?? null,
+          });
+        } else {
+          results.push({ localId: w.localId, error: error.message });
+        }
+      } else {
+        results.push({ localId: w.localId, serverId: data.id });
+      }
+      continue;
+    }
+
+    if (w.table === "ice_operations") {
+      const payload = IceOperationSubmissionInput.safeParse(w.payload);
+      if (!payload.success) {
+        results.push({ localId: w.localId, error: "invalid payload" });
+        continue;
+      }
+
+      const { data, error } = await supabase
+        .from("ice_operations")
+        .insert({
+          facility_id: facilityId,
+          operation_type_id: payload.data.operation_type_id,
+          equipment_id: payload.data.equipment_id,
+          submitted_by: user.id,
+          submitted_at: payload.data.submitted_at,
+          answers: payload.data.answers,
+          local_id: payload.data.local_id,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        const isDup = /duplicate key|unique/i.test(error.message);
+        if (isDup) {
+          const { data: existing } = await supabase
+            .from("ice_operations")
             .select("id")
             .eq("facility_id", facilityId)
             .eq("local_id", payload.data.local_id)

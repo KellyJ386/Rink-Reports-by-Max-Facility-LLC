@@ -235,6 +235,181 @@ export type Database = {
           },
         ]
       }
+      ice_equipment: {
+        Row: {
+          active: boolean
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_equipment_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_operation_type_fields: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          operation_type_id: string
+          options: Json | null
+          position: number
+          required: boolean
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          operation_type_id: string
+          options?: Json | null
+          position?: number
+          required?: boolean
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          operation_type_id?: string
+          options?: Json | null
+          position?: number
+          required?: boolean
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_operation_type_fields_operation_type_id_fkey"
+            columns: ["operation_type_id"]
+            isOneToOne: false
+            referencedRelation: "ice_operation_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_operation_types: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_operation_types_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ice_operations: {
+        Row: {
+          answers: Json
+          created_at: string
+          equipment_id: string
+          facility_id: string
+          id: string
+          local_id: string | null
+          operation_type_id: string
+          submitted_at: string
+          submitted_by: string
+        }
+        Insert: {
+          answers: Json
+          created_at?: string
+          equipment_id: string
+          facility_id: string
+          id?: string
+          local_id?: string | null
+          operation_type_id: string
+          submitted_at?: string
+          submitted_by: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          equipment_id?: string
+          facility_id?: string
+          id?: string
+          local_id?: string | null
+          operation_type_id?: string
+          submitted_at?: string
+          submitted_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ice_operations_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "ice_equipment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ice_operations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ice_operations_operation_type_id_fkey"
+            columns: ["operation_type_id"]
+            isOneToOne: false
+            referencedRelation: "ice_operation_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sync_log: {
         Row: {
           client_id: string

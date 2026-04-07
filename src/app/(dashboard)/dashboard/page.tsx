@@ -20,6 +20,7 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 // cards. Add a slug here when its module page ships.
 const LIVE_MODULE_ROUTES = new Set<string>([
   "daily-reports",
+  "ice-operations",
 ]);
 
 const MODULE_BLURBS: Record<string, string> = {
