@@ -67,6 +67,72 @@ export type Database = {
           },
         ]
       }
+      user_notification_prefs: {
+        Row: {
+          id: string
+          user_id: string
+          facility_id: string
+          email_enabled: boolean
+          sms_enabled: boolean
+          push_enabled: boolean
+          phone_number: string | null
+          min_severity: string
+          alert_types: string[]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          facility_id: string
+          email_enabled?: boolean
+          sms_enabled?: boolean
+          push_enabled?: boolean
+          phone_number?: string | null
+          min_severity?: string
+          alert_types?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          facility_id?: string
+          email_enabled?: boolean
+          sms_enabled?: boolean
+          push_enabled?: boolean
+          phone_number?: string | null
+          min_severity?: string
+          alert_types?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          facility_id: string
+          subscription: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          facility_id: string
+          subscription: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          facility_id?: string
+          subscription?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
       air_quality_readings: {
         Row: {
           co_ppm: number

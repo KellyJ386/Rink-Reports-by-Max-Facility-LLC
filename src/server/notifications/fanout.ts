@@ -131,7 +131,7 @@ export async function fanOutAlert(
           for (const sub of subs) {
             sendPromises.push(
               sendAlertPush({
-                subscription: sub.subscription as webpush.PushSubscription,
+                subscription: sub.subscription as unknown as webpush.PushSubscription,
                 alert,
                 facilityName,
               }),

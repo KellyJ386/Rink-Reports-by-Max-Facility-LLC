@@ -80,9 +80,11 @@ export function usePushSubscription() {
     const registration = await navigator.serviceWorker.ready;
 
     // Create push subscription
+    // urlBase64ToUint8Array returns Uint8Array; cast to BufferSource for the
+    // PushSubscriptionOptionsInit type which expects a stricter ArrayBuffer view.
     const pushSubscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
     });
 
     // POST to server — fire and store

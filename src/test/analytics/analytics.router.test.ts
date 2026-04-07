@@ -82,6 +82,7 @@ function buildCtx(fakeSupabase: ReturnType<typeof buildFakeSupabase>): TRPCConte
     supabase: fakeSupabase as any,
     user: { id: "user-1" } as TRPCContext["user"],
     facilityId: TEST_FACILITY_ID,
+    role: "staff",
   };
 }
 
@@ -232,6 +233,7 @@ describe("analytics router", () => {
         supabase: fake as any,
         user: null,
         facilityId: null,
+        role: null,
       };
       const caller = appRouter.createCaller(unauthedCtx);
       await expect(

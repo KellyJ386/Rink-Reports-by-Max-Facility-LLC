@@ -14,9 +14,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 
-const sendAlertEmailSpy = vi.fn(async () => undefined);
-const sendAlertSmsSpy = vi.fn(async () => undefined);
-const sendAlertPushSpy = vi.fn(async () => undefined);
+const sendAlertEmailSpy = vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined);
+const sendAlertSmsSpy = vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined);
+const sendAlertPushSpy = vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined);
 
 vi.mock("@/server/notifications/email", () => ({
   sendAlertEmail: (...args: unknown[]) => sendAlertEmailSpy(...args),

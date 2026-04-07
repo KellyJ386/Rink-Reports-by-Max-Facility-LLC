@@ -76,15 +76,16 @@ function RefrigerationSection({ days }: { days: Days }) {
   const shiftLabels = Array.from(new Set((data ?? []).map((d) => d.shiftLabel)));
 
   // Pivot to LineChart format: each row has date + one key per shift
-  const pivoted = useMemo(() => {
-    const byDate = new Map<string, Record<string, number | string | null>>();
+  type PivotRow = { [key: string]: string | number | null; date: string };
+  const pivoted = useMemo<PivotRow[]>(() => {
+    const byDate = new Map<string, PivotRow>();
     for (const row of data ?? []) {
-      const entry = byDate.get(row.date) ?? { date: row.date };
+      const entry: PivotRow = byDate.get(row.date) ?? { date: row.date };
       entry[row.shiftLabel] = row.avgDeltaT;
       byDate.set(row.date, entry);
     }
     return Array.from(byDate.values()).sort((a, b) =>
-      String(a.date).localeCompare(String(b.date)),
+      a.date.localeCompare(b.date),
     );
   }, [data]);
 
