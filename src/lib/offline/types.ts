@@ -157,3 +157,23 @@ export interface IncidentCache extends BaseCacheEntry {
   description: string;
   bodyDiagramData: Record<string, unknown> | null;
 }
+
+// ────────────────────────────────────────────────────────────────
+// Alert — Phase C server-side anomaly detection
+// Rows are written by the Vercel cron anomaly scanner, read by
+// authenticated users within their facility scope.
+// ────────────────────────────────────────────────────────────────
+
+export type Alert = {
+  id: string;
+  facilityId: string;
+  alertType: string;
+  severity: "info" | "warning" | "critical";
+  targetIdentifier: string | null;
+  title: string;
+  description: string;
+  metadata: Record<string, unknown>;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  createdAt: string;
+};
