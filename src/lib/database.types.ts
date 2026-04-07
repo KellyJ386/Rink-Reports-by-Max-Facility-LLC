@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      air_quality_readings: {
+        Row: {
+          co_ppm: number
+          created_at: string
+          facility_id: string
+          id: string
+          local_id: string | null
+          no2_ppm: number
+          notes: string | null
+          submitted_at: string
+          submitted_by: string
+          tier: string
+        }
+        Insert: {
+          co_ppm: number
+          created_at?: string
+          facility_id: string
+          id?: string
+          local_id?: string | null
+          no2_ppm: number
+          notes?: string | null
+          submitted_at?: string
+          submitted_by: string
+          tier: string
+        }
+        Update: {
+          co_ppm?: number
+          created_at?: string
+          facility_id?: string
+          id?: string
+          local_id?: string | null
+          no2_ppm?: number
+          notes?: string | null
+          submitted_at?: string
+          submitted_by?: string
+          tier?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "air_quality_readings_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_report_checklists: {
         Row: {
           created_at: string

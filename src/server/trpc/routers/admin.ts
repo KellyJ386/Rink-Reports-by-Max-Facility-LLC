@@ -7,6 +7,7 @@ import { protectedProcedure, router } from "@/server/trpc/trpc";
 import { dailyReportsAdminRouter } from "@/server/trpc/routers/daily-reports-admin";
 import { iceOperationsAdminRouter } from "@/server/trpc/routers/ice-operations-admin";
 import { refrigerationAdminRouter } from "@/server/trpc/routers/refrigeration-admin";
+import { airQualityAdminRouter } from "@/server/trpc/routers/air-quality-admin";
 
 /**
  * Admin Control Center API.
@@ -347,4 +348,11 @@ export const adminRouter = router({
    * for facility-specific normal operating ranges.
    */
   refrigeration: refrigerationAdminRouter,
+
+  /**
+   * Air Quality admin sub-router. Mounted as `admin.airQuality`.
+   * Manages regulatory limits, working thresholds, and per-tier
+   * action protocol text.
+   */
+  airQuality: airQualityAdminRouter,
 });

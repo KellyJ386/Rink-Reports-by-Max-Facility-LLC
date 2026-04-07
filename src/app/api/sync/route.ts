@@ -6,6 +6,12 @@ import type { Json } from "@/lib/database.types";
 import { DailyReportSubmissionInput } from "@/modules/daily-reports/schema";
 import { IceOperationSubmissionInput } from "@/modules/ice-operations/schema";
 import { RefrigerationReadingInput } from "@/modules/refrigeration/schema";
+import {
+  AirQualityReadingInput,
+  EMPTY_THRESHOLDS,
+  ThresholdSet,
+  computeTier,
+} from "@/modules/air-quality/schema";
 
 /**
  * /api/sync — the only non-tRPC endpoint allowed for app data.
@@ -145,6 +151,72 @@ export async function POST(req: Request) {
         if (isDup) {
           const { data: existing } = await supabase
             .from("ice_operations")
+            .select("id")
+            .eq("facility_id", facilityId)
+            .eq("local_id", payload.data.local_id)
+            .maybeSingle();
+          results.push({
+            localId: w.localId,
+            serverId: existing?.id ?? null,
+          });
+        } else {
+          results.push({ localId: w.localId, error: error.message });
+        }
+      } else {
+        results.push({ localId: w.localId, serverId: data.id });
+      }
+      continue;
+    }
+
+    if (w.table === "air_quality_readings") {
+      const payload = AirQualityReadingInput.safeParse(w.payload);
+      if (!payload.success) {
+        results.push({ localId: w.localId, error: "invalid payload" });
+        continue;
+      }
+
+      // Compute tier server-side from the facility's current
+      // working thresholds. The tier is then frozen on the row so
+      // historical reports do not shift if thresholds are later
+      // retightened.
+      const { data: thresholdsRow } = await supabase
+        .from("facility_config")
+        .select("value")
+        .eq("facility_id", facilityId)
+        .eq("module", "air-quality")
+        .eq("key", "thresholds")
+        .maybeSingle();
+
+      const parsedThresholds = ThresholdSet.safeParse(thresholdsRow?.value);
+      const thresholds = parsedThresholds.success
+        ? parsedThresholds.data
+        : EMPTY_THRESHOLDS;
+
+      const tier = computeTier(
+        { co_ppm: payload.data.co_ppm, no2_ppm: payload.data.no2_ppm },
+        thresholds,
+      );
+
+      const { data, error } = await supabase
+        .from("air_quality_readings")
+        .insert({
+          facility_id: facilityId,
+          submitted_by: user.id,
+          submitted_at: payload.data.submitted_at,
+          co_ppm: payload.data.co_ppm,
+          no2_ppm: payload.data.no2_ppm,
+          notes: payload.data.notes ?? null,
+          tier,
+          local_id: payload.data.local_id,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        const isDup = /duplicate key|unique/i.test(error.message);
+        if (isDup) {
+          const { data: existing } = await supabase
+            .from("air_quality_readings")
             .select("id")
             .eq("facility_id", facilityId)
             .eq("local_id", payload.data.local_id)
