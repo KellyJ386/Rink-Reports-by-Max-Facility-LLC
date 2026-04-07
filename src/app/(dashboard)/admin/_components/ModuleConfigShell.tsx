@@ -6,6 +6,7 @@ import { IceOperationsConfigCard } from "@/app/(dashboard)/admin/_components/Ice
 import { RefrigerationConfigCard } from "@/app/(dashboard)/admin/_components/RefrigerationConfigCard";
 import { AirQualityConfigCard } from "@/app/(dashboard)/admin/_components/AirQualityConfigCard";
 import { IceDepthConfigCard } from "@/app/(dashboard)/admin/_components/IceDepthConfigCard";
+import { IncidentsConfigCard } from "@/app/(dashboard)/admin/_components/IncidentsConfigCard";
 
 /**
  * Per-module configuration shell.
@@ -22,6 +23,7 @@ const PANELS: Record<string, () => React.JSX.Element> = {
   refrigeration: RefrigerationConfigCard,
   "air-quality": AirQualityConfigCard,
   "ice-depth": IceDepthConfigCard,
+  incidents: IncidentsConfigCard,
 };
 
 function moduleLabel(slug: string): string {

@@ -9,6 +9,7 @@ import { iceOperationsAdminRouter } from "@/server/trpc/routers/ice-operations-a
 import { refrigerationAdminRouter } from "@/server/trpc/routers/refrigeration-admin";
 import { airQualityAdminRouter } from "@/server/trpc/routers/air-quality-admin";
 import { iceDepthAdminRouter } from "@/server/trpc/routers/ice-depth-admin";
+import { incidentsAdminRouter } from "@/server/trpc/routers/incidents-admin";
 
 /**
  * Admin Control Center API.
@@ -363,4 +364,12 @@ export const adminRouter = router({
    * a unit ('in' or 'mm') and up to 60 numbered (x, y) points.
    */
   iceDepth: iceDepthAdminRouter,
+
+  /**
+   * Incidents admin sub-router. Mounted as `admin.incidents`.
+   * Manages the four facility-config string lists that drive the
+   * staff form dropdowns: locations, incident types, injured-person
+   * types, and body region labels.
+   */
+  incidents: incidentsAdminRouter,
 });

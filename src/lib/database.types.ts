@@ -558,6 +558,59 @@ export type Database = {
           },
         ]
       }
+      incidents: {
+        Row: {
+          created_at: string
+          data: Json
+          description: string
+          facility_id: string
+          id: string
+          incident_type: string
+          kind: string
+          local_id: string | null
+          location: string
+          occurred_at: string
+          submitted_at: string
+          submitted_by: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          description: string
+          facility_id: string
+          id?: string
+          incident_type: string
+          kind: string
+          local_id?: string | null
+          location: string
+          occurred_at: string
+          submitted_at?: string
+          submitted_by: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          description?: string
+          facility_id?: string
+          id?: string
+          incident_type?: string
+          kind?: string
+          local_id?: string | null
+          location?: string
+          occurred_at?: string
+          submitted_at?: string
+          submitted_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incidents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       refrigeration_compressors: {
         Row: {
           active: boolean
