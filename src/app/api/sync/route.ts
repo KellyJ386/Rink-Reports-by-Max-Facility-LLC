@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { DailyReportSubmissionInput } from "@/modules/daily-reports/schema";
 
 /**
  * /api/sync — the only non-tRPC endpoint allowed for app data.
@@ -9,8 +10,12 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
  * and replays them in a single round-trip; doing that through tRPC
  * would mean one HTTP request per pending write. See CLAUDE.md Rule 7.
  *
- * Phase 0: validates the envelope and resolves the caller's facility.
- * Per-module write handlers are added in their respective phases.
+ * Per-table dispatch lives here. Every handler:
+ *   - validates `payload` with the module's Zod schema
+ *   - sets facility_id from the resolved profile (Rule 1)
+ *   - sets submitted_by from auth.uid() (Rule 1)
+ *   - relies on the unique (facility_id, local_id) index for
+ *     idempotent replay (a duplicate-key error is treated as success)
  */
 
 const QueuedRecord = z.object({
@@ -23,6 +28,12 @@ const QueuedRecord = z.object({
 const SyncBody = z.object({
   writes: z.array(QueuedRecord),
 });
+
+interface SyncResultRow {
+  localId: string;
+  serverId?: string | null;
+  error?: string | null;
+}
 
 export async function POST(req: Request) {
   const json: unknown = await req.json();
@@ -56,12 +67,62 @@ export async function POST(req: Request) {
     );
   }
 
-  // Phase 0: no module write handlers exist yet. Acknowledge the
-  // envelope so the client engine can mark its queue as drained
-  // during local development. Real handlers land per phase.
-  return NextResponse.json({
-    ok: true,
-    processed: 0,
-    received: parsed.data.writes.length,
-  });
+  const facilityId = profile.facility_id;
+  const results: SyncResultRow[] = [];
+
+  for (const w of parsed.data.writes) {
+    if (w.table === "daily_reports") {
+      const payload = DailyReportSubmissionInput.safeParse(w.payload);
+      if (!payload.success) {
+        results.push({ localId: w.localId, error: "invalid payload" });
+        continue;
+      }
+
+      const { data, error } = await supabase
+        .from("daily_reports")
+        .insert({
+          facility_id: facilityId,
+          checklist_id: payload.data.checklist_id,
+          submitted_by: user.id,
+          submitted_at: payload.data.submitted_at,
+          answers: payload.data.answers,
+          local_id: payload.data.local_id,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        // Idempotent replay: a second insert with the same
+        // (facility_id, local_id) hits the unique index. Treat as
+        // success and return the existing server id.
+        const isDup = /duplicate key|unique/i.test(error.message);
+        if (isDup) {
+          const { data: existing } = await supabase
+            .from("daily_reports")
+            .select("id")
+            .eq("facility_id", facilityId)
+            .eq("local_id", payload.data.local_id)
+            .maybeSingle();
+          results.push({
+            localId: w.localId,
+            serverId: existing?.id ?? null,
+          });
+        } else {
+          results.push({ localId: w.localId, error: error.message });
+        }
+      } else {
+        results.push({ localId: w.localId, serverId: data.id });
+      }
+      continue;
+    }
+
+    // Unknown table — surface a clear error so the queue keeps the row
+    // around for inspection rather than silently dropping it.
+    results.push({
+      localId: w.localId,
+      error: `unknown table: ${w.table}`,
+    });
+  }
+
+  return NextResponse.json({ ok: true, results });
 }

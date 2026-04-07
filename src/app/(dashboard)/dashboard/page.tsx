@@ -19,7 +19,7 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 // enabled-but-not-yet-built: they appear on the dashboard as config-only
 // cards. Add a slug here when its module page ships.
 const LIVE_MODULE_ROUTES = new Set<string>([
-  // "daily-reports" lands here when Plan 2B ships /daily-reports.
+  "daily-reports",
 ]);
 
 const MODULE_BLURBS: Record<string, string> = {
