@@ -29,6 +29,7 @@ export function ToastHost() {
     setBacklog((bl) => {
       if (bl.length === 0) return bl;
       const [next, ...rest] = bl;
+      if (next === undefined) return bl;
       setVisible((v) => (v.length < MAX_VISIBLE ? [...v, next] : v));
       return rest;
     });
@@ -50,6 +51,7 @@ export function ToastHost() {
   useEffect(() => {
     if (visible.length === 0) return;
     const last = visible[visible.length - 1];
+    if (!last) return;
     const timer = setTimeout(() => {
       removeToast(last.id);
     }, last.durationMs ?? 3000);

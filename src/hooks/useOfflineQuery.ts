@@ -101,7 +101,12 @@ export function useOfflineQuery<T>(
   // useLiveQuery returns `undefined` until Dexie has loaded (async init).
   // Once loaded it returns the full array (possibly empty).
   const rawLive = useLiveQuery(
-    () => (db as unknown as Record<string, { toArray: () => Promise<T[]> }>)[table].toArray(),
+    () => {
+      const tables = db as unknown as Record<string, { toArray: () => Promise<T[]> }>;
+      const t = tables[table];
+      if (!t) return Promise.resolve<T[]>([]);
+      return t.toArray();
+    },
     [table],
   );
 
@@ -139,9 +144,14 @@ export function useOfflineQuery<T>(
       try {
         const results = await fetcherRef.current();
         if (signal.aborted) return;
-        await (
-          db as unknown as Record<string, { bulkPut: (r: T[]) => Promise<unknown> }>
-        )[table].bulkPut(results);
+        const tables = db as unknown as Record<
+          string,
+          { bulkPut: (r: T[]) => Promise<unknown> }
+        >;
+        const t = tables[table];
+        if (t) {
+          await t.bulkPut(results);
+        }
         if (signal.aborted) return;
         fetchAttemptedRef.current = true;
         setLastFetchedAt(new Date());
