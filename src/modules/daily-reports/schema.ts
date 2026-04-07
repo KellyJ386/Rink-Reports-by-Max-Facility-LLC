@@ -123,3 +123,45 @@ export const ReorderItemsInput = z.object({
   checklist_id: z.string().uuid(),
   ids: z.array(z.string().uuid()).min(1),
 });
+
+// ---------------------------------------------------------------------
+// Submission payload (staff-facing)
+// ---------------------------------------------------------------------
+
+/**
+ * One answered field. The discriminator is the renderer's `type`; we
+ * keep the value loosely typed because the runtime answer for a
+ * dropdown is a string, for a checkbox a boolean, for a number a
+ * finite number, and for the two text variants a string. The
+ * server-side handler does its own per-item shape check against the
+ * checklist definition before insert.
+ */
+export const AnswerValue = z.union([
+  z.string(),
+  z.number().finite(),
+  z.boolean(),
+  z.null(),
+]);
+export type AnswerValue = z.infer<typeof AnswerValue>;
+
+export const SubmitDailyReportInput = z.object({
+  checklist_id: z.string().uuid(),
+  /** Map of item_id -> answer value. */
+  answers: z.record(z.string().uuid(), AnswerValue),
+});
+export type SubmitDailyReportInput = z.infer<typeof SubmitDailyReportInput>;
+
+/**
+ * Wire shape that the offline queue posts to /api/sync for the
+ * `daily_reports` table. `local_id` is the Dexie primary key, used
+ * server-side as an idempotency token (see the unique index in
+ * migration 005). `submitted_at` is the wall-clock time of the
+ * original local write so retries don't drift to the server clock.
+ */
+export const DailyReportSyncPayload = z.object({
+  checklist_id: z.string().uuid(),
+  answers: z.record(z.string().uuid(), AnswerValue),
+  submitted_at: z.string().datetime(),
+  local_id: z.string().min(1),
+});
+export type DailyReportSyncPayload = z.infer<typeof DailyReportSyncPayload>;

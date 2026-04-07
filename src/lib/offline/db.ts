@@ -63,3 +63,25 @@ export class RinkReportsDB extends Dexie {
 }
 
 export const db = new RinkReportsDB();
+
+/**
+ * Push one queued write into the offline store. Modules call this
+ * from their form-submit path before showing success and nudging
+ * the sync engine. The local id is generated here so callers can
+ * stamp the same value into the payload itself (for the server-side
+ * idempotency check).
+ */
+export async function enqueueWrite(
+  table: string,
+  payload: unknown,
+  localId: string,
+): Promise<void> {
+  await db.queue.add({
+    localId,
+    table,
+    payload,
+    syncedAt: 0,
+    serverId: null,
+    retryCount: 0,
+  });
+}
