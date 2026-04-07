@@ -1,97 +1,160 @@
-# Phase B — Agent 2 (Pull Channel) Completion Marker
+# Phase C — Agent 2 (Anomaly Detection) Completion Marker
 
 ## Branch
-`phase-b/pull-channel`
+`phase-c/anomaly-detection`
 
 ## Worktree path
-`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-aa2b2db9`
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-ad26ba3a`
 
 ## Task Status
 
-### Task 1 — tRPC pull procedures for all 6 modules
+### Task 1 — Alerts table migration + TypeScript type
 **STATUS: COMPLETE**
-Commit: `47ba327`
-
-All 6 routers have a `pull` query:
-- `src/server/trpc/routers/daily-reports.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/ice-operations.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/refrigeration.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/air-quality.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/ice-depth.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/incidents.ts` — `submitted_at >= since`
-
-Each uses `protectedProcedure`, filters by `ctx.facilityId` (Rule 1 + 8),
-and returns raw rows without reshaping. All tables exist in Supabase (no
-stubs needed).
-
-### Task 2 — usePullChannel hook
-**STATUS: COMPLETE**
-Commit: `84f653b`
+Commit: `4c40d6c`
 
 Files:
-- `src/lib/offline/types.ts` — six cached-read interfaces
-  (`CachedDailyReport`, `CachedIceOperation`, `CachedRefrigerationReading`,
-  `CachedAirQualityReading`, `CachedIceDepthSession`, `CachedIncident`)
-- `src/hooks/usePullChannel.ts` — the hook itself
+- `supabase/migrations/015_alerts.sql` — alerts table, 3 indexes
+  (facility, created_at DESC, unresolved partial), RLS policies
+  (SELECT + UPDATE for authenticated; INSERT intentionally absent —
+  only service-role cron writes rows), GRANT SELECT/UPDATE to
+  authenticated.
+- `src/lib/offline/types.ts` — `Alert` type appended (camelCase,
+  matches DB columns).
 
-Key design decisions:
-- `trpc.useUtils()` is stored in a ref (`utilsRef`) so `pullAll` has an
-  empty dependency array — avoids infinite re-render loop from the
-  `useCallback` + `useEffect` dependency chain.
-- Six sequential module pulls each in their own try/catch.
-- AbortController wired to mount/unmount effect.
-- Online event debounced 2000ms via `setTimeout` ref.
-- db table casts through `unknown` since Agent 1's Dexie migration adds
-  the module tables in parallel; the runtime will error if tables are
-  missing, which is correct behaviour.
+RLS uses `get_user_facility_id()` from `001_foundation.sql` (the
+canonical helper function name confirmed by reading that migration).
 
-### Task 3 — SyncContext + wire into layout
+### Task 2 — Detection logic
 **STATUS: COMPLETE**
-Commit: `8fcee83`
+Commit: `3bf8346`
 
 Files:
-- `src/context/SyncContext.tsx` — `SyncContext` + `useSyncContext()` helper
-- `src/components/layout/SyncProvider.tsx` — calls `usePullChannel()`,
-  provides values; `pendingCount` defaults to 0 (Agent 5 replaces)
-- `src/components/layout/index.ts` — `SyncProvider` exported
-- `src/app/(dashboard)/_components/DashboardShell.tsx` — children wrapped
-  in `<SyncProvider>`
+- `src/server/anomaly/types.ts` — `DetectionResult` type
+- `src/server/anomaly/detectors/refrigerationDrift.ts`
+  - 90-day baseline per compressor per pressure field
+  - Last-3-readings average compared to baseline
+  - >15% above → warning; >25% → critical
+  - alertType: `refrigeration_drift`
+  - targetIdentifier: `compressor-{compressor_id}`
+- `src/server/anomaly/detectors/missedDailyReports.ts`
+  - Reads `daily_report_checklists` (no hardcoded tab names — Rule 2)
+  - Checks last 7 completed days per checklist
+  - 1 missed day = info, 2 = warning, 3+ = critical
+  - alertType: `missed_daily_report`
+  - targetIdentifier: `{YYYY-MM-DD}-{checklistId}`
+- `src/server/anomaly/detectors/airQualityEscalation.ts`
+  - Last 24 hours of air_quality_readings
+  - tier="action" → warning; tier="evacuate" → critical
+  - alertType: `air_quality_escalation`
+  - targetIdentifier: reading `submitted_at` ISO string
+- `src/server/anomaly/detectors/iceDepthThinSpots.ts`
+  - Last 3 completed ice_depth_sessions vs 90-day baseline
+  - Per-point measurements map (JSONB key = point number)
+  - 20-35% below baseline → warning; >35% → critical
+  - alertType: `ice_depth_thin_spot`
+  - targetIdentifier: `point-{pointKey}`
+- `src/server/anomaly/index.ts` — `runAllDetectors()` via
+  `Promise.allSettled`, Sentry capture for rejections
+- `src/lib/database.types.ts` — `alerts` table added (hand-written;
+  migration 015 post-dates last type generation)
 
-### Task 4 — Tests
-**STATUS: COMPLETE — all 4 tests pass (79 total, 0 failures)**
-Commit: `2fe6ce5`
+### Task 3 — Persistence + dedup
+**STATUS: COMPLETE**
+Commit: `20b204a`
 
-File: `src/test/hooks/usePullChannel.test.ts`
+File: `src/server/anomaly/persist.ts`
 
-Tests:
-1. Mount: all 6 pull.fetch called with since ~14 days ago (within 5s)
-2. Online event: after 2000ms debounce, pull fires again
-3. Upsert: pull results flow through adapters into db.<table>.bulkPut
-4. Failure isolation: one module throwing resets isPulling, sets error,
-   but the other 5 modules still complete their pulls
+- `persistAlerts(results, supabase): Promise<{ inserted, skipped, errors }>`
+- Per result: SELECT with `.is("resolved_at", null)` + facility_id +
+  alert_type + target_identifier (null-safe: `.is()` for null values,
+  `.eq()` for non-null)
+- Existing unresolved match → skip; else INSERT
+- `Promise.allSettled` so one failure doesn't block the batch
+- Sentry capture for each rejection
 
-Mocking strategy:
-- `@/lib/offline/db` mocked with per-table `bulkPut` vi.fn() spies
-- `@/lib/trpc` mocked with `useUtils()` returning per-module `pull.fetch`
-  vi.fn() stubs
+### Task 4 — Vercel cron
+**STATUS: COMPLETE**
+Commit: `a8bc4b7`
 
-SKIPPED:
-- Sentry dynamic import path is not tested — fire-and-forget side effect
-  that would require complex async module import mocking. Covered by
-  existing Phase A Sentry tRPC formatter tests.
+Files:
+- `src/app/api/cron/anomaly-scan/route.ts`
+  - GET handler (Vercel cron calls GET)
+  - Verifies `Authorization: Bearer {CRON_SECRET}` → 401 if wrong
+  - `createSupabaseServiceRoleClient()` — bypasses RLS for cross-facility
+  - Fetches all facility IDs from `facilities` table
+  - `Promise.allSettled` per facility: `runAllDetectors` → `persistAlerts`
+  - Returns `{ ok, scanned, alertsCreated }`; never 500s — Sentry absorbs errors
+- `vercel.json` — hourly cron: `"0 * * * *"` on `/api/cron/anomaly-scan`
+- `.env.example` — `CRON_SECRET=` appended
+
+### Task 5 — tRPC alerts router
+**STATUS: COMPLETE**
+Commit: `4fc11d6`
+
+Files:
+- `src/server/trpc/routers/alerts.ts`
+  - `list` query: `{ resolved, severity?, limit }` → `Alert[]`
+    ordered by `created_at DESC`, filtered by `ctx.facilityId`
+  - `resolve` mutation: verifies ownership → sets `resolved_at = now()`,
+    `resolved_by = ctx.user.id`
+  - Both use `protectedProcedure` (Rule 8)
+- `src/server/trpc/routers/index.ts` — `alerts: alertsRouter` registered
+
+### Task 6 — Tests
+**STATUS: COMPLETE — 15 new tests, 105 total passing**
+Commit: `32878d4`
+
+Files:
+- `src/test/anomaly/refrigerationDrift.test.ts` (5 tests)
+  - <3 recent → no alerts
+  - within threshold → no alerts
+  - +20% → warning
+  - +30% → critical
+  - no baseline → no alerts
+- `src/test/anomaly/persist.test.ts` (5 tests)
+  - no existing → inserted=1
+  - existing → skipped=1
+  - SELECT error → error counted, others processed
+  - empty batch → zeros
+  - correct INSERT fields
+- `src/test/anomaly/cron.route.test.ts` (5 tests)
+  - missing header → 401
+  - wrong secret → 401
+  - missing env var → 401
+  - valid secret → 200 summary
+  - runAllDetectors called per facility
 
 ## Commit SHAs (in order)
-1. `47ba327` — feat(pull): tRPC pull procedures for all 6 modules
-2. `84f653b` — feat(pull): usePullChannel hook — boot + online event pull
-3. `8fcee83` — feat(pull): wire usePullChannel into app layout via SyncProvider
-4. `2fe6ce5` — test: usePullChannel — mount, online event, upsert, failure isolation
-5. (this file) — chore: phase-b agent 2 completion marker
+1. `4c40d6c` — feat(alerts): create alerts table migration + RLS policies
+2. `3bf8346` — feat(anomaly): detection logic for 4 anomaly types
+3. `20b204a` — feat(anomaly): alert deduplication + Supabase persistence
+4. `a8bc4b7` — feat(anomaly): Vercel cron job — hourly anomaly scan
+5. `4fc11d6` — feat(anomaly): tRPC alerts procedures — list + resolve
+6. `32878d4` — test: anomaly detection, persistence, cron auth
+7. (this file) — chore: phase-c agent 2 completion marker
 
-## Notes for downstream agents
-- `useSyncContext()` is available throughout the dashboard tree.
-  Import from `@/context/SyncContext`.
-- `pendingCount` in SyncContext is hardcoded to 0. Agent 5 should
-  replace this with a `useLiveQuery` on `db.queue.where('syncedAt').equals(0).count()`.
-- The six module Dexie tables are NOT yet in `src/lib/offline/db.ts`.
-  Agent 1 owns that migration. The hook casts through `unknown` at runtime.
-- `triggerPull()` is stable and safe to call from anywhere in the tree.
+## Notes for downstream agents (Agent 3 — Notifications)
+
+### New surface area
+- `appRouter.alerts.list` and `appRouter.alerts.resolve` are available
+  for any UI that wants to display or dismiss alerts.
+- `Alert` type is in `src/lib/offline/types.ts`.
+- `runAllDetectors(facilityId, supabase)` returns `DetectionResult[]`
+  — can be reused if Agent 3 wants to trigger notifications from the
+  same scan results.
+- `persistAlerts` returns `{ inserted }` — the count of newly created
+  alerts can be used to decide whether to fan-out notifications.
+
+### Alerts table schema highlights
+- `resolved_at IS NULL` = open alert (the dedup key)
+- `severity` ∈ `{ info, warning, critical }`
+- `alert_type` + `target_identifier` uniquely identify the anomaly
+  context within a facility (used for dedup)
+- `metadata JSONB` contains detector-specific detail (pressures,
+  depths, checklist names, etc.)
+- Service-role only for INSERT; authenticated users can SELECT + UPDATE
+
+### What was NOT built (Phase C Agent 3 scope)
+- No notification fan-out (email / SMS / web push)
+- No alerts UI component — tRPC endpoint is ready; UI is Agent 3+
+- No Dexie cache for alerts — not needed (alerts are not offline-writable)
