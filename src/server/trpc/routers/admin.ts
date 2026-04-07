@@ -11,6 +11,7 @@ import { airQualityAdminRouter } from "@/server/trpc/routers/air-quality-admin";
 import { iceDepthAdminRouter } from "@/server/trpc/routers/ice-depth-admin";
 import { incidentsAdminRouter } from "@/server/trpc/routers/incidents-admin";
 import { schedulingAdminRouter } from "@/server/trpc/routers/scheduling-admin";
+import { communicationsAdminRouter } from "@/server/trpc/routers/communications-admin";
 
 /**
  * Admin Control Center API.
@@ -408,4 +409,11 @@ export const adminRouter = router({
    * the top-level scheduling router (manager + admin).
    */
   scheduling: schedulingAdminRouter,
+
+  /**
+   * Communications admin sub-router. Mounted as `admin.communications`.
+   * Manages the facility's postal code, country, and preferred
+   * temperature unit (used by the Universal Module Header on PDFs).
+   */
+  communications: communicationsAdminRouter,
 });

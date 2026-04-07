@@ -558,6 +558,76 @@ export type Database = {
           },
         ]
       }
+      message_recipients: {
+        Row: {
+          message_id: string
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          message_id: string
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          message_id?: string
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_recipients_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          attachment_label: string | null
+          attachment_path: string | null
+          body: string
+          created_at: string
+          facility_id: string
+          id: string
+          sender_id: string
+          sent_at: string
+          subject: string
+        }
+        Insert: {
+          attachment_label?: string | null
+          attachment_path?: string | null
+          body?: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          sender_id: string
+          sent_at?: string
+          subject: string
+        }
+        Update: {
+          attachment_label?: string | null
+          attachment_path?: string | null
+          body?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          sender_id?: string
+          sent_at?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incidents: {
         Row: {
           created_at: string

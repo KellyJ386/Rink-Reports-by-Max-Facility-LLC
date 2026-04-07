@@ -26,6 +26,7 @@ const LIVE_MODULE_ROUTES = new Set<string>([
   "ice-depth",
   "incidents",
   "scheduling",
+  "communications",
 ]);
 
 const MODULE_BLURBS: Record<string, string> = {
