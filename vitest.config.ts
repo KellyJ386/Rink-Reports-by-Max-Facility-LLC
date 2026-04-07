@@ -19,6 +19,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       'server-only': path.resolve(__dirname, './src/test/stubs/server-only.ts'),
+      'dexie-react-hooks': path.resolve(__dirname, './src/test/stubs/dexie-react-hooks.ts'),
     },
   },
 });
