@@ -5,6 +5,7 @@ import { FacilitySettingsCard } from "@/app/(dashboard)/admin/_components/Facili
 import { ModuleTogglesCard } from "@/app/(dashboard)/admin/_components/ModuleTogglesCard";
 import { UserManagementCard } from "@/app/(dashboard)/admin/_components/UserManagementCard";
 import { ModuleConfigShell } from "@/app/(dashboard)/admin/_components/ModuleConfigShell";
+import { BillingConfigCard } from "@/app/(dashboard)/admin/_components/BillingConfigCard";
 
 /**
  * Admin Control Center.
@@ -70,6 +71,7 @@ export default async function AdminPage() {
       </header>
 
       <FacilitySettingsCard />
+      <BillingConfigCard />
       <ModuleTogglesCard />
       <UserManagementCard />
       <ModuleConfigShell />

@@ -10,6 +10,24 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 
 /**
+ * Procedure that requires an authenticated user but NOT a facility.
+ * Used by Phase 6 onboarding — a freshly-signed-up user has a
+ * Supabase Auth session but no `user_profiles` row yet, so they
+ * can't satisfy the facilityId guard until they pick a facility name.
+ */
+export const authedProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not signed in" });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+    },
+  });
+});
+
+/**
  * Procedure that requires an authenticated user with a resolved facility_id.
  * After this middleware runs, downstream procedures can rely on
  * `ctx.facilityId` being a non-null string. See CLAUDE.md Rule 1 + 8.

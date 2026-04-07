@@ -13,6 +13,7 @@ import {
   computeTier,
 } from "@/modules/air-quality/schema";
 import { IceDepthSessionInput } from "@/modules/ice-depth/schema";
+import { IncidentSubmissionInput } from "@/modules/incidents/schema";
 
 /**
  * /api/sync — the only non-tRPC endpoint allowed for app data.
@@ -218,6 +219,55 @@ export async function POST(req: Request) {
         if (isDup) {
           const { data: existing } = await supabase
             .from("air_quality_readings")
+            .select("id")
+            .eq("facility_id", facilityId)
+            .eq("local_id", payload.data.local_id)
+            .maybeSingle();
+          results.push({
+            localId: w.localId,
+            serverId: existing?.id ?? null,
+          });
+        } else {
+          results.push({ localId: w.localId, error: error.message });
+        }
+      } else {
+        results.push({ localId: w.localId, serverId: data.id });
+      }
+      continue;
+    }
+
+    if (w.table === "incidents") {
+      const payload = IncidentSubmissionInput.safeParse(w.payload);
+      if (!payload.success) {
+        results.push({ localId: w.localId, error: "invalid payload" });
+        continue;
+      }
+
+      const report = payload.data.report;
+
+      const { data, error } = await supabase
+        .from("incidents")
+        .insert({
+          facility_id: facilityId,
+          submitted_by: user.id,
+          kind: report.kind,
+          occurred_at: report.occurred_at,
+          location: report.location,
+          incident_type: report.incident_type,
+          description: report.description,
+          // Store the entire validated report shape as JSONB so the
+          // read view can rehydrate every variable per-kind field.
+          data: report as unknown as Json,
+          local_id: payload.data.local_id,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        const isDup = /duplicate key|unique/i.test(error.message);
+        if (isDup) {
+          const { data: existing } = await supabase
+            .from("incidents")
             .select("id")
             .eq("facility_id", facilityId)
             .eq("local_id", payload.data.local_id)

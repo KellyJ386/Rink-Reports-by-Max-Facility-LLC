@@ -99,6 +99,7 @@ create trigger ice_depth_sessions_set_updated_at
 create or replace function public.ice_depth_sessions_freeze_completed()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   if old.status = 'completed' then
