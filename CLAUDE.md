@@ -106,16 +106,25 @@ src/
     useModuleConfig.ts   # reads facility_config — used everywhere
 
 ## Phase Gates
-### Phase A — Reality Reset & Hardening (current)
-Exit gates that MUST pass before any new module work resumes:
-- CI green: typecheck + lint + test all run on every PR
-- Test coverage: all module Zod schemas, `/api/sync` route,
-  tRPC auth/facility canaries, and `useModuleConfig` are
-  covered by tests
-- Layout components exist and render: `Header`, `Sidebar`,
-  `MobileNav`, `OfflineBanner`, `SyncStatus`
-- Sentry wired into the tRPC error formatter, `proxy.ts`,
-  and `/api/sync`
+### Phase A — Reality Reset & Hardening (complete)
+- CI green: typecheck + lint + test on every PR
+- Test coverage: schemas, /api/sync, tRPC auth canary, useModuleConfig
+- Layout components: Header, Sidebar, MobileNav, OfflineBanner, SyncStatus
+- Sentry wired into tRPC, proxy.ts, /api/sync
+
+### Phase B — Truly Offline-First (complete)
+- Dexie schema extended with 6 module read caches (version 2)
+- tRPC `pull` procedures for all 6 modules; `usePullChannel` boot + online debounce
+- `useOfflineQuery` hook (Dexie-first, network upgrade, isStale, refetch)
+- PWA: `@ducanh2912/next-pwa`, manifest, SVG icons, InstallPrompt, /offline page
+- Sync UX: live `useSyncStatus`, `rr:sync-ack` event, toast on drain, responsive badge
+- /api/sync refactored to thin dispatcher + per-table handler registry
+
+### Phase C — Insight Layer (next)
+- Trends dashboards per module
+- Server-side anomaly detection + alerts table
+- Notifications fan-out (email/SMS/web push)
+- Read-only owner/GM dashboards
 
 ## Environment Variables Needed
 NEXT_PUBLIC_SUPABASE_URL
@@ -124,10 +133,25 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_TRPC_URL
 
 ## Current Phase
-Phase A — Reality Reset & Hardening. No new module UI until
-every Phase A exit gate above is green.
+Phase B complete; Phase C ready. The app is now offline-first
+across all 6 module read caches, with PWA install + offline
+fallback, live sync UX, and a maintainable sync dispatcher.
+Next work belongs in Phase C (Insight Layer).
 
 ## CHANGELOG
+
+### 2026-04-07 — Phase B complete (Truly Offline-First)
+6 specialist agents merged. Dexie schema extended to version 2
+with 6 module read caches. tRPC `pull` procedures + 14-day
+`usePullChannel` (boot + debounced online event). `useOfflineQuery`
+hook is the new data-fetching primitive: Dexie-first, network
+upgrade, isStale, refetch, error isolation. PWA shipped via
+`@ducanh2912/next-pwa` + manifest + InstallPrompt + /offline page.
+Sync UX: live `useSyncStatus`, `rr:sync-ack` event from sync engine,
+toast on drain, responsive header badge. /api/sync refactored from
+~430-line switch into a 55-line dispatcher + per-table handler
+registry. Tests: 90 passing across 15 files; typecheck clean.
+See PHASE_B_COMPLETE.md for details.
 
 ### 2026-04-07 — Phase A migration
 Phases 0 through 5 scaffolding has landed (Supabase schema,
