@@ -452,6 +452,7 @@ export type Database = {
           facility_id: string
           key: string
           module: string
+          retention_policies: Json | null
           updated_at: string
           value: Json
         }
@@ -460,6 +461,7 @@ export type Database = {
           facility_id: string
           key: string
           module: string
+          retention_policies?: Json | null
           updated_at?: string
           value: Json
         }
@@ -468,6 +470,7 @@ export type Database = {
           facility_id?: string
           key?: string
           module?: string
+          retention_policies?: Json | null
           updated_at?: string
           value?: Json
         }
