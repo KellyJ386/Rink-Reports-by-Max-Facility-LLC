@@ -11,6 +11,7 @@ import { incidentsRouter } from "@/server/trpc/routers/incidents";
 import { schedulingRouter } from "@/server/trpc/routers/scheduling";
 import { communicationsRouter } from "@/server/trpc/routers/communications";
 import { onboardingRouter } from "@/server/trpc/routers/onboarding";
+import { billingRouter } from "@/server/trpc/routers/billing";
 
 export const appRouter = router({
   admin: adminRouter,
@@ -23,6 +24,7 @@ export const appRouter = router({
   scheduling: schedulingRouter,
   communications: communicationsRouter,
   onboarding: onboardingRouter,
+  billing: billingRouter,
 });
 
 export type AppRouter = typeof appRouter;

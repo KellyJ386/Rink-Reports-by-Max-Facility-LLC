@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/lib/database.types";
 
@@ -39,5 +40,28 @@ export async function createSupabaseServerClient() {
         }
       },
     },
+  });
+}
+
+/**
+ * Service-role Supabase client. Bypasses RLS entirely — only use
+ * inside server-only code paths that have already authenticated the
+ * caller through some other channel (e.g. the Stripe webhook
+ * verifying its signature against STRIPE_WEBHOOK_SECRET, the
+ * Phase 6B Stripe checkout endpoint validating ctx.facilityId, etc).
+ *
+ * Never import this from a client component, never expose its
+ * results raw to the network.
+ */
+export function createSupabaseServiceRoleClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+    );
+  }
+  return createClient<Database>(url, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }

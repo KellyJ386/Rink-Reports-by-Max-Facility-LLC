@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { authedProcedure, router } from "@/server/trpc/trpc";
+import { createOrUpdateContact } from "@/lib/hubspot";
 
 /**
  * Onboarding router. Mounted at `onboarding`. The single mutation
@@ -75,6 +76,24 @@ export const onboardingRouter = router({
           message: error.message,
         });
       }
-      return { facility_id: data as unknown as string };
+
+      const facilityId = data as unknown as string;
+
+      // Best-effort HubSpot Contact sync. Non-blocking — if HubSpot
+      // is unreachable or HUBSPOT_ACCESS_TOKEN isn't set, the call
+      // is a silent no-op so onboarding still succeeds.
+      const email = ctx.user.email ?? "";
+      if (email) {
+        // We don't await — the user shouldn't pay the latency cost.
+        // Errors are swallowed inside createOrUpdateContact itself.
+        void createOrUpdateContact({
+          email,
+          facility_name: input.name,
+          facility_id: facilityId,
+          subscription_status: "trialing",
+        });
+      }
+
+      return { facility_id: facilityId };
     }),
 });
