@@ -21,6 +21,7 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 const LIVE_MODULE_ROUTES = new Set<string>([
   "daily-reports",
   "ice-operations",
+  "refrigeration",
 ]);
 
 const MODULE_BLURBS: Record<string, string> = {

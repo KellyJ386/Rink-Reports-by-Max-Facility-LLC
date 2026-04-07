@@ -6,6 +6,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 import { dailyReportsAdminRouter } from "@/server/trpc/routers/daily-reports-admin";
 import { iceOperationsAdminRouter } from "@/server/trpc/routers/ice-operations-admin";
+import { refrigerationAdminRouter } from "@/server/trpc/routers/refrigeration-admin";
 
 /**
  * Admin Control Center API.
@@ -339,4 +340,11 @@ export const adminRouter = router({
    * and friends. Manages operation types, their fields, and equipment.
    */
   iceOperations: iceOperationsAdminRouter,
+
+  /**
+   * Refrigeration admin sub-router. Mounted as
+   * `admin.refrigeration`. Manages compressors and the threshold map
+   * for facility-specific normal operating ranges.
+   */
+  refrigeration: refrigerationAdminRouter,
 });

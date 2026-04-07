@@ -410,6 +410,97 @@ export type Database = {
           },
         ]
       }
+      refrigeration_compressors: {
+        Row: {
+          active: boolean
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refrigeration_compressors_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      refrigeration_readings: {
+        Row: {
+          brine_flow: number | null
+          brine_return: number | null
+          brine_supply: number | null
+          compressor_readings: Json
+          condenser_temp: number | null
+          created_at: string
+          facility_id: string
+          ice_surface_temp: number | null
+          id: string
+          local_id: string | null
+          submitted_at: string
+          submitted_by: string
+        }
+        Insert: {
+          brine_flow?: number | null
+          brine_return?: number | null
+          brine_supply?: number | null
+          compressor_readings?: Json
+          condenser_temp?: number | null
+          created_at?: string
+          facility_id: string
+          ice_surface_temp?: number | null
+          id?: string
+          local_id?: string | null
+          submitted_at?: string
+          submitted_by: string
+        }
+        Update: {
+          brine_flow?: number | null
+          brine_return?: number | null
+          brine_supply?: number | null
+          compressor_readings?: Json
+          condenser_temp?: number | null
+          created_at?: string
+          facility_id?: string
+          ice_surface_temp?: number | null
+          id?: string
+          local_id?: string | null
+          submitted_at?: string
+          submitted_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refrigeration_readings_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sync_log: {
         Row: {
           client_id: string

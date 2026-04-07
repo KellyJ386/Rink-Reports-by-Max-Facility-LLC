@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import type { Json } from "@/lib/database.types";
 import { DailyReportSubmissionInput } from "@/modules/daily-reports/schema";
 import { IceOperationSubmissionInput } from "@/modules/ice-operations/schema";
+import { RefrigerationReadingInput } from "@/modules/refrigeration/schema";
 
 /**
  * /api/sync — the only non-tRPC endpoint allowed for app data.
@@ -143,6 +145,53 @@ export async function POST(req: Request) {
         if (isDup) {
           const { data: existing } = await supabase
             .from("ice_operations")
+            .select("id")
+            .eq("facility_id", facilityId)
+            .eq("local_id", payload.data.local_id)
+            .maybeSingle();
+          results.push({
+            localId: w.localId,
+            serverId: existing?.id ?? null,
+          });
+        } else {
+          results.push({ localId: w.localId, error: error.message });
+        }
+      } else {
+        results.push({ localId: w.localId, serverId: data.id });
+      }
+      continue;
+    }
+
+    if (w.table === "refrigeration_readings") {
+      const payload = RefrigerationReadingInput.safeParse(w.payload);
+      if (!payload.success) {
+        results.push({ localId: w.localId, error: "invalid payload" });
+        continue;
+      }
+
+      const { data, error } = await supabase
+        .from("refrigeration_readings")
+        .insert({
+          facility_id: facilityId,
+          submitted_by: user.id,
+          submitted_at: payload.data.submitted_at,
+          brine_supply: payload.data.brine_supply,
+          brine_return: payload.data.brine_return,
+          brine_flow: payload.data.brine_flow,
+          ice_surface_temp: payload.data.ice_surface_temp,
+          condenser_temp: payload.data.condenser_temp,
+          compressor_readings:
+            payload.data.compressor_readings as unknown as Json,
+          local_id: payload.data.local_id,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        const isDup = /duplicate key|unique/i.test(error.message);
+        if (isDup) {
+          const { data: existing } = await supabase
+            .from("refrigeration_readings")
             .select("id")
             .eq("facility_id", facilityId)
             .eq("local_id", payload.data.local_id)
