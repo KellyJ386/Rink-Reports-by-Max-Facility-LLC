@@ -36,20 +36,11 @@ export default async function DashboardLayout({
     .maybeSingle();
 
   if (!profile?.facility_id) {
-    return (
-      <div className="mx-auto flex max-w-3xl flex-1 flex-col gap-4 px-6 py-16">
-        <h1 className="text-2xl font-semibold text-navy">
-          Awaiting facility assignment
-        </h1>
-        <p className="text-grey">
-          Your account exists but is not yet linked to a facility. Please
-          contact your administrator.
-        </p>
-        <div>
-          <SignOutButton />
-        </div>
-      </div>
-    );
+    // Phase 6 multi-facility: a freshly-signed-up user with no
+    // user_profiles row (or a row whose facility_id was nulled out)
+    // is sent through self-serve onboarding instead of seeing the
+    // dead-end "contact your administrator" page.
+    redirect("/onboarding");
   }
 
   const { data: facility } = await supabase

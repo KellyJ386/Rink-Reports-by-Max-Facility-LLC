@@ -250,6 +250,50 @@ export type Database = {
           },
         ]
       }
+      facility_subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          facility_id: string
+          plan: string | null
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_end: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          facility_id: string
+          plan?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_end?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          facility_id?: string
+          plan?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_end?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facility_subscriptions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: true
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facility_modules: {
         Row: {
           created_at: string
@@ -1118,6 +1162,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_facility: {
+        Args: { p_name: string; p_timezone?: string }
+        Returns: string
+      }
       get_user_facility_id: { Args: never; Returns: string }
       get_user_role: {
         Args: never
