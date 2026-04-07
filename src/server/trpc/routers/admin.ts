@@ -10,6 +10,7 @@ import { refrigerationAdminRouter } from "@/server/trpc/routers/refrigeration-ad
 import { airQualityAdminRouter } from "@/server/trpc/routers/air-quality-admin";
 import { iceDepthAdminRouter } from "@/server/trpc/routers/ice-depth-admin";
 import { incidentsAdminRouter } from "@/server/trpc/routers/incidents-admin";
+import { schedulingAdminRouter } from "@/server/trpc/routers/scheduling-admin";
 
 /**
  * Admin Control Center API.
@@ -285,6 +286,33 @@ export const adminRouter = router({
   }),
 
   /**
+   * Return the calling user's own profile (id, role, full_name).
+   * Open to any authenticated user — used by client UIs that need
+   * to gate sub-features on the caller's role (e.g. the Scheduling
+   * editor tab is manager+admin only).
+   */
+  me: protectedProcedure.query(async ({ ctx }) => {
+    const { data, error } = await ctx.supabase
+      .from("user_profiles")
+      .select("user_id, full_name, role, facility_id")
+      .eq("user_id", ctx.user.id)
+      .maybeSingle();
+    if (error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: error.message,
+      });
+    }
+    if (!data) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Profile not found",
+      });
+    }
+    return data;
+  }),
+
+  /**
    * Update a user's role within the caller's facility.
    *
    * Three guards:
@@ -372,4 +400,12 @@ export const adminRouter = router({
    * types, and body region labels.
    */
   incidents: incidentsAdminRouter,
+
+  /**
+   * Scheduling admin sub-router. Mounted as `admin.scheduling`.
+   * Manages positions, certifications, the position→cert junction,
+   * and the staff→cert junction. Schedule + shift mutations live on
+   * the top-level scheduling router (manager + admin).
+   */
+  scheduling: schedulingAdminRouter,
 });

@@ -702,6 +702,268 @@ export type Database = {
           },
         ]
       }
+      scheduling_availability: {
+        Row: {
+          blocks: Json
+          created_at: string
+          facility_id: string
+          id: string
+          recurring: boolean
+          updated_at: string
+          user_id: string
+          week_start: string | null
+        }
+        Insert: {
+          blocks?: Json
+          created_at?: string
+          facility_id: string
+          id?: string
+          recurring?: boolean
+          updated_at?: string
+          user_id: string
+          week_start?: string | null
+        }
+        Update: {
+          blocks?: Json
+          created_at?: string
+          facility_id?: string
+          id?: string
+          recurring?: boolean
+          updated_at?: string
+          user_id?: string
+          week_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_availability_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduling_certifications: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_certifications_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduling_position_certifications: {
+        Row: {
+          certification_id: string
+          position_id: string
+        }
+        Insert: {
+          certification_id: string
+          position_id: string
+        }
+        Update: {
+          certification_id?: string
+          position_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_position_certifications_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduling_position_certifications_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduling_positions: {
+        Row: {
+          color: string
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_positions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduling_schedules: {
+        Row: {
+          created_at: string
+          created_by: string
+          facility_id: string
+          id: string
+          published_at: string | null
+          status: string
+          updated_at: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          facility_id: string
+          id?: string
+          published_at?: string | null
+          status?: string
+          updated_at?: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          facility_id?: string
+          id?: string
+          published_at?: string | null
+          status?: string
+          updated_at?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_schedules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduling_shifts: {
+        Row: {
+          created_at: string
+          end_at: string
+          id: string
+          notes: string | null
+          position_id: string
+          schedule_id: string
+          start_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_at: string
+          id?: string
+          notes?: string | null
+          position_id: string
+          schedule_id: string
+          start_at: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          end_at?: string
+          id?: string
+          notes?: string | null
+          position_id?: string
+          schedule_id?: string
+          start_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_shifts_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_positions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduling_shifts_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduling_staff_certifications: {
+        Row: {
+          certification_id: string
+          granted_at: string
+          user_id: string
+        }
+        Insert: {
+          certification_id: string
+          granted_at?: string
+          user_id: string
+        }
+        Update: {
+          certification_id?: string
+          granted_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_staff_certifications_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_certifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sync_log: {
         Row: {
           client_id: string
@@ -791,6 +1053,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      is_manager_or_admin: { Args: never; Returns: boolean }
       known_modules: { Args: never; Returns: string[] }
       list_facility_users: {
         Args: never

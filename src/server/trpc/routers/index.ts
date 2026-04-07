@@ -8,6 +8,7 @@ import { refrigerationRouter } from "@/server/trpc/routers/refrigeration";
 import { airQualityRouter } from "@/server/trpc/routers/air-quality";
 import { iceDepthRouter } from "@/server/trpc/routers/ice-depth";
 import { incidentsRouter } from "@/server/trpc/routers/incidents";
+import { schedulingRouter } from "@/server/trpc/routers/scheduling";
 
 export const appRouter = router({
   admin: adminRouter,
@@ -17,6 +18,7 @@ export const appRouter = router({
   airQuality: airQualityRouter,
   iceDepth: iceDepthRouter,
   incidents: incidentsRouter,
+  scheduling: schedulingRouter,
 });
 
 export type AppRouter = typeof appRouter;
