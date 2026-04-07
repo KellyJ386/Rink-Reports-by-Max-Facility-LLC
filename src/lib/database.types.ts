@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          id: string
+          facility_id: string
+          alert_type: string
+          severity: string
+          target_identifier: string | null
+          title: string
+          description: string
+          metadata: Json
+          resolved_at: string | null
+          resolved_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          facility_id: string
+          alert_type: string
+          severity: string
+          target_identifier?: string | null
+          title: string
+          description: string
+          metadata?: Json
+          resolved_at?: string | null
+          resolved_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          facility_id?: string
+          alert_type?: string
+          severity?: string
+          target_identifier?: string | null
+          title?: string
+          description?: string
+          metadata?: Json
+          resolved_at?: string | null
+          resolved_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       air_quality_readings: {
         Row: {
           co_ppm: number
