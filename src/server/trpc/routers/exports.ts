@@ -73,9 +73,19 @@ export const exportsRouter = router({
       // Fetch facility info (name and address for OSHA 300A establishment section)
       const { data: facility } = await ctx.supabase
         .from("facilities")
-        .select("name, address")
+        .select("name, address_line1, city, state, postal_code")
         .eq("id", ctx.facilityId)
         .maybeSingle();
+
+      // Compose a single address string from the structured address columns
+      const facilityAddress = [
+        facility?.address_line1,
+        facility?.city,
+        facility?.state,
+        facility?.postal_code,
+      ]
+        .filter(Boolean)
+        .join(", ");
 
       const { from, to } = yearRange(input.year);
 
@@ -159,9 +169,8 @@ export const exportsRouter = router({
 
       const base64 = await generateOshaLog({
         facilityName: facility?.name ?? "",
-        // TODO: address column may not exist on all facility rows;
-        // add a facilities.address migration if absent.
-        facilityAddress: (facility as Record<string, unknown> | null)?.["address"] as string ?? "",
+        // Address composed from structured columns: address_line1, city, state, postal_code
+        facilityAddress,
         year: input.year,
         incidents: mapped,
         facilityId: ctx.facilityId,
@@ -190,11 +199,20 @@ export const exportsRouter = router({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
 
-      const { data: facility } = await ctx.supabase
+      const { data: epaFacility } = await ctx.supabase
         .from("facilities")
-        .select("name, address")
+        .select("name, address_line1, city, state, postal_code")
         .eq("id", ctx.facilityId)
         .maybeSingle();
+
+      const epaFacilityAddress = [
+        epaFacility?.address_line1,
+        epaFacility?.city,
+        epaFacility?.state,
+        epaFacility?.postal_code,
+      ]
+        .filter(Boolean)
+        .join(", ");
 
       const { from, to } = yearRange(input.year);
 
@@ -216,17 +234,17 @@ export const exportsRouter = router({
       }
 
       const base64 = await generateEpaRmpLog({
-        facilityName: facility?.name ?? "",
-        facilityAddress: (facility as Record<string, unknown> | null)?.["address"] as string ?? "",
+        facilityName: epaFacility?.name ?? "",
+        facilityAddress: epaFacilityAddress,
         year: input.year,
         refrigerantType: input.refrigerantType,
         readings: (readings ?? []).map((r) => ({
-          submitted_at: r.submitted_at as string,
-          brine_supply: r.brine_supply !== undefined ? (r.brine_supply as number | null) : null,
-          brine_return: r.brine_return !== undefined ? (r.brine_return as number | null) : null,
-          brine_flow: r.brine_flow !== undefined ? (r.brine_flow as number | null) : null,
-          ice_surface_temp: r.ice_surface_temp !== undefined ? (r.ice_surface_temp as number | null) : null,
-          condenser_temp: r.condenser_temp !== undefined ? (r.condenser_temp as number | null) : null,
+          submitted_at: r.submitted_at,
+          brine_supply: r.brine_supply ?? null,
+          brine_return: r.brine_return ?? null,
+          brine_flow: r.brine_flow ?? null,
+          ice_surface_temp: r.ice_surface_temp ?? null,
+          condenser_temp: r.condenser_temp ?? null,
         })),
       });
 
