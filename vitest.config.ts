@@ -20,6 +20,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       'server-only': path.resolve(__dirname, './src/test/stubs/server-only.ts'),
       'dexie-react-hooks': path.resolve(__dirname, './src/test/stubs/dexie-react-hooks.ts'),
+      'recharts': path.resolve(__dirname, './src/test/stubs/recharts.tsx'),
     },
   },
 });
