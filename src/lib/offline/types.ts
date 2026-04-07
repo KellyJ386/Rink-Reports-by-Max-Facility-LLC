@@ -193,3 +193,20 @@ export type NotificationPrefs = {
   minSeverity: "info" | "warning" | "critical";
   alertTypes: string[];
 };
+
+// ────────────────────────────────────────────────────────────────
+// RetentionPolicies — Phase D per-facility archive configuration
+// Stored in facility_config.retention_policies (JSONB).
+// NULL = keep forever (compliance records may never be deleted).
+// Admin can only set values >= 365; incidents and air_quality_readings
+// are always null (compliance — never delete).
+// ────────────────────────────────────────────────────────────────
+
+export type RetentionPolicies = {
+  dailyReports: number;
+  iceOperations: number;
+  refrigerationReadings: number;
+  airQualityReadings: null; // compliance — never delete
+  iceDepthSessions: number;
+  incidents: null; // compliance — never delete
+};
