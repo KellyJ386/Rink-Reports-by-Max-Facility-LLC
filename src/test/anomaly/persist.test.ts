@@ -32,6 +32,20 @@ const state: MockState = {
 // Track INSERT calls
 const insertSpy = vi.fn();
 
+const INSERTED_ROW = {
+  id: "new-alert-uuid",
+  facility_id: "facility-123",
+  alert_type: "refrigeration_drift",
+  severity: "warning",
+  target_identifier: "compressor-abc",
+  title: "Drift detected",
+  description: "Some drift",
+  metadata: {},
+  resolved_at: null,
+  resolved_by: null,
+  created_at: new Date().toISOString(),
+};
+
 function makeMockSupabase() {
   return {
     from: vi.fn(() => {
@@ -46,7 +60,13 @@ function makeMockSupabase() {
         })),
         insert: vi.fn((data: unknown) => {
           insertSpy(data);
-          return { error: state.insertError };
+          return {
+            select: vi.fn().mockReturnThis(),
+            single: vi.fn(async () => ({
+              data: state.insertError ? null : INSERTED_ROW,
+              error: state.insertError,
+            })),
+          };
         }),
       };
       return selectChain;
@@ -131,7 +151,7 @@ describe("persistAlerts", () => {
       supabase as unknown as SupabaseClient<Database>,
     );
 
-    expect(result).toEqual({ inserted: 0, skipped: 0, errors: 0 });
+    expect(result).toMatchObject({ inserted: 0, skipped: 0, errors: 0, insertedAlerts: [] });
     expect(insertSpy).not.toHaveBeenCalled();
   });
 

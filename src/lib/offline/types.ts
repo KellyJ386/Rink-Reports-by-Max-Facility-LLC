@@ -177,3 +177,19 @@ export type Alert = {
   resolvedBy: string | null;
   createdAt: string;
 };
+
+// ────────────────────────────────────────────────────────────────
+// NotificationPrefs — Phase C per-user notification preferences
+// ────────────────────────────────────────────────────────────────
+
+export type NotificationPrefs = {
+  id: string;
+  userId: string;
+  facilityId: string;
+  emailEnabled: boolean;
+  smsEnabled: boolean;
+  pushEnabled: boolean;
+  phoneNumber: string | null;
+  minSeverity: "info" | "warning" | "critical";
+  alertTypes: string[];
+};

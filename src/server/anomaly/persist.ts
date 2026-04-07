@@ -4,11 +4,13 @@ import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
 import type { DetectionResult } from "@/server/anomaly/types";
+import type { Alert } from "@/lib/offline/types";
 
 export type PersistResult = {
   inserted: number;
   skipped: number;
   errors: number;
+  insertedAlerts: Alert[];
 };
 
 /**
@@ -26,7 +28,7 @@ export async function persistAlerts(
   supabase: SupabaseClient<Database>,
 ): Promise<PersistResult> {
   if (results.length === 0) {
-    return { inserted: 0, skipped: 0, errors: 0 };
+    return { inserted: 0, skipped: 0, errors: 0, insertedAlerts: [] };
   }
 
   const settled = await Promise.allSettled(
@@ -36,11 +38,16 @@ export async function persistAlerts(
   let inserted = 0;
   let skipped = 0;
   let errors = 0;
+  const insertedAlerts: Alert[] = [];
 
   for (const outcome of settled) {
     if (outcome.status === "fulfilled") {
-      if (outcome.value === "inserted") inserted++;
-      else skipped++;
+      if (outcome.value === "skipped") {
+        skipped++;
+      } else {
+        inserted++;
+        insertedAlerts.push(outcome.value);
+      }
     } else {
       errors++;
       Sentry.captureException(outcome.reason, {
@@ -49,13 +56,13 @@ export async function persistAlerts(
     }
   }
 
-  return { inserted, skipped, errors };
+  return { inserted, skipped, errors, insertedAlerts };
 }
 
 async function persistOne(
   result: DetectionResult,
   supabase: SupabaseClient<Database>,
-): Promise<"inserted" | "skipped"> {
+): Promise<Alert | "skipped"> {
   // Dedup check: is there already an unresolved alert for this exact
   // (facility_id, alert_type, target_identifier) triple?
   // target_identifier can be null: use .is() for null, .eq() for non-null.
@@ -86,21 +93,39 @@ async function persistOne(
     return "skipped";
   }
 
-  const { error: insertErr } = await supabase.from("alerts").insert({
-    facility_id: result.facilityId,
-    alert_type: result.alertType,
-    severity: result.severity,
-    target_identifier: result.targetIdentifier ?? null,
-    title: result.title,
-    description: result.description,
-    metadata: (result.metadata ?? {}) as Json,
-  });
+  const { data: inserted, error: insertErr } = await supabase
+    .from("alerts")
+    .insert({
+      facility_id: result.facilityId,
+      alert_type: result.alertType,
+      severity: result.severity,
+      target_identifier: result.targetIdentifier ?? null,
+      title: result.title,
+      description: result.description,
+      metadata: (result.metadata ?? {}) as Json,
+    })
+    .select(
+      "id, facility_id, alert_type, severity, target_identifier, title, description, metadata, resolved_at, resolved_by, created_at",
+    )
+    .single();
 
-  if (insertErr) {
+  if (insertErr || !inserted) {
     throw new Error(
-      `INSERT failed for ${result.alertType}/${result.targetIdentifier ?? "null"}: ${insertErr.message}`,
+      `INSERT failed for ${result.alertType}/${result.targetIdentifier ?? "null"}: ${insertErr?.message ?? "no row returned"}`,
     );
   }
 
-  return "inserted";
+  return {
+    id: inserted.id,
+    facilityId: inserted.facility_id,
+    alertType: inserted.alert_type,
+    severity: inserted.severity as "info" | "warning" | "critical",
+    targetIdentifier: inserted.target_identifier,
+    title: inserted.title,
+    description: inserted.description,
+    metadata: (inserted.metadata as Record<string, unknown>) ?? {},
+    resolvedAt: inserted.resolved_at,
+    resolvedBy: inserted.resolved_by,
+    createdAt: inserted.created_at,
+  };
 }

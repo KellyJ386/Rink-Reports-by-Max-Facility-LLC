@@ -16,6 +16,7 @@ const persistAlertsSpy = vi.fn(async (_results: unknown, _supabase: unknown) => 
   inserted: 2,
   skipped: 0,
   errors: 0,
+  insertedAlerts: [],
 }));
 
 vi.mock("@/server/anomaly/index", () => ({
@@ -28,8 +29,15 @@ vi.mock("@/server/anomaly/persist", () => ({
     persistAlertsSpy(results, supabase),
 }));
 
+vi.mock("@/server/notifications/fanout", () => ({
+  fanOutAlert: vi.fn(async () => undefined),
+}));
+
 // Mock service role client
-const mockFacilities = [{ id: "facility-1" }, { id: "facility-2" }];
+const mockFacilities = [
+  { id: "facility-1", name: "Rink 1" },
+  { id: "facility-2", name: "Rink 2" },
+];
 
 const mockSupabase = {
   from: vi.fn(() => ({
@@ -96,7 +104,7 @@ describe("GET /api/cron/anomaly-scan", () => {
       ),
     });
     runAllDetectorsSpy.mockResolvedValue([]);
-    persistAlertsSpy.mockResolvedValue({ inserted: 2, skipped: 0, errors: 0 });
+    persistAlertsSpy.mockResolvedValue({ inserted: 2, skipped: 0, errors: 0, insertedAlerts: [] });
 
     const req = makeRequest("Bearer test-secret-xyz");
     const res = await GET(req);
@@ -115,7 +123,7 @@ describe("GET /api/cron/anomaly-scan", () => {
       ),
     });
     runAllDetectorsSpy.mockResolvedValue([]);
-    persistAlertsSpy.mockResolvedValue({ inserted: 0, skipped: 0, errors: 0 });
+    persistAlertsSpy.mockResolvedValue({ inserted: 0, skipped: 0, errors: 0, insertedAlerts: [] });
 
     const req = makeRequest("Bearer test-secret-xyz");
     await GET(req);
