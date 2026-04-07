@@ -39,6 +39,41 @@ function toAnswers(value: unknown): IceOperationAnswers {
 
 export const iceOperationsRouter = router({
   // -------------------------------------------------------------------
+  // Pull: sync recent operations to the client's Dexie cache.
+  // Returns all rows with submitted_at >= input.since for this facility.
+  // -------------------------------------------------------------------
+  pull: protectedProcedure
+    .input(z.object({ since: z.string().datetime() }))
+    .query(async ({ ctx, input }): Promise<RecentIceOperation[]> => {
+      const { data, error } = await ctx.supabase
+        .from("ice_operations")
+        .select(
+          "id, operation_type_id, equipment_id, submitted_at, submitted_by, answers, local_id",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.since)
+        .order("submitted_at", { ascending: false });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        operation_type_id: row.operation_type_id,
+        equipment_id: row.equipment_id,
+        submitted_at: row.submitted_at,
+        submitted_by: row.submitted_by,
+        answers: toAnswers(row.answers),
+        local_id: row.local_id,
+      }));
+    }),
+
+
+  // -------------------------------------------------------------------
   // Read: every operation type for this facility, with fields nested.
   // -------------------------------------------------------------------
   listOperationTypes: protectedProcedure.query(
