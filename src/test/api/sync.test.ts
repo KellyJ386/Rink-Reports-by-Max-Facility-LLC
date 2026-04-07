@@ -150,7 +150,7 @@ describe('POST /api/sync', () => {
               local_id: UUID_LOCAL,
               checklist_id: UUID_CHECK,
               submitted_at: '2026-04-07T12:00:00.000Z',
-              answers: [],
+              answers: {},
             },
             retryCount: 0,
           },
@@ -165,8 +165,9 @@ describe('POST /api/sync', () => {
     };
     expect(body.ok).toBe(true);
     expect(body.results).toHaveLength(1);
-    expect(body.results[0].serverId).toBe(UUID_SERVER);
-    expect(body.results[0].error).toBeUndefined();
+    const first = body.results[0]!;
+    expect(first.serverId).toBe(UUID_SERVER);
+    expect(first.error).toBeUndefined();
   });
 
   it('unknown table: result row has clear error and no 500', async () => {
@@ -198,6 +199,6 @@ describe('POST /api/sync', () => {
       ok: boolean;
       results: Array<{ localId: string; error?: string }>;
     };
-    expect(body.results[0].error).toBe('unknown table: no_such_table');
+    expect(body.results[0]!.error).toBe('unknown table: no_such_table');
   });
 });

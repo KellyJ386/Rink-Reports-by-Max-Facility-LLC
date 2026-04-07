@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
   /* config options here */
 };
 
-export default withSentryConfig(
-  nextConfig,
-  { silent: true, org: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT },
-  { disableServerWebpackPlugin: false },
-);
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+});

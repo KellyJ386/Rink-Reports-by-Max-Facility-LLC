@@ -66,7 +66,7 @@ describe('communications schema', () => {
   it('parseMarkdown handles paragraph + bullet list', () => {
     const blocks = parseMarkdown('Hello **world**\n\n- one\n- two');
     expect(blocks.length).toBe(2);
-    expect(blocks[0].kind).toBe('paragraph');
-    expect(blocks[1].kind).toBe('bullet_list');
+    expect(blocks[0]!.kind).toBe('paragraph');
+    expect(blocks[1]!.kind).toBe('bullet_list');
   });
 });
