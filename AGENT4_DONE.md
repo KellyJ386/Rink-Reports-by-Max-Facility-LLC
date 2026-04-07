@@ -1,23 +1,24 @@
-# Agent 4 — Sentry & Infra — Completion Report
+# Phase B — Agent 4 (PWA) Completion Marker
 
-Branch: `phase-a/sentry-infra`
-Feature commit: `4694dcd3a577c0562257a7cc5bd0683b3c255a68`
+## Branch
+`phase-b/pwa`
 
-## Sub-step status
+## Worktree
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-ae57848d`
 
-1. **package.json** — modified. Added `"@sentry/nextjs": "^8.40.0"` to dependencies. (Did not run npm install per instructions.)
-2. **sentry.client.config.ts** — created at repo root with `Sentry.init({ dsn, tracesSampleRate: 0.2, environment })`.
-3. **sentry.server.config.ts** — created at repo root with same init (no browser-only integrations).
-4. **sentry.edge.config.ts** — created at repo root with same init.
-5. **next.config.ts** — modified. Imported `withSentryConfig`, preserved existing `nextConfig` object, wrapped default export with `withSentryConfig(nextConfig, { silent: true, org, project }, { disableServerWebpackPlugin: false })`.
-6. **src/server/trpc/trpc.ts** — modified. Imported `* as Sentry from "@sentry/nextjs"`. Added `errorFormatter` to `initTRPC.create()` that calls `Sentry.captureException(error)` when `shape.data?.code === "INTERNAL_SERVER_ERROR"`. Existing procedures preserved.
-7. **src/proxy.ts** — modified. Imported Sentry. Wrapped entire `proxy()` body in try/catch; catch calls `Sentry.captureException(err)` then re-throws. All existing logic preserved inside the try block.
-8. **src/app/api/sync/route.ts** — modified. Imported Sentry. Wrapped entire `POST` body in try/catch; catch reports to Sentry and returns `{ ok: false, error: "Internal error" }` with status 500. All existing logic preserved.
-9. **.env.example** — modified. Appended Sentry block with `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
+## Task Statuses
 
-## Notes / skipped items
+| Task | Description | Status | Commit SHA |
+|------|-------------|--------|------------|
+| 1 | Install + configure @ducanh2912/next-pwa | DONE | 242897d |
+| 2 | Web app manifest (`src/app/manifest.ts`) | DONE | a71cd06 |
+| 3 | SVG PWA icons (192 + 512) | DONE | b4bd23f |
+| 4 | iOS meta tags + InstallPrompt component | DONE | f416437 |
+| 5 | Offline fallback page + OfflineRetryButton | DONE | 64d600c |
 
-- `npm install` not run, per instructions — `node_modules` will need a refresh on next install.
-- No push, no PR — local commits only.
-- Existing `nextConfig` object was minimal (`{}`) but preserved verbatim.
-- `initTRPC` builder previously had no `errorFormatter`; one was added without removing other (none) options.
+## Notes
+- `next.config.ts` wraps: `withSentryConfig(pwa(nextConfig), sentryOptions)` — Sentry composition preserved.
+- `InstallPrompt` is wired inside `DashboardShell` main content area, below the Header.
+- `BeforeInstallPromptEvent` typed as `any` per task spec (not in standard TS lib).
+- Offline page lives at `src/app/offline/page.tsx` (Server Component) with client `OfflineRetryButton`.
+- Icons at `public/icons/icon-192.svg` and `public/icons/icon-512.svg`.
