@@ -1,23 +1,20 @@
-# Phase B — Agent 1 (Dexie Schema) Completion
+# Phase C Agent 1 — Trends Dashboard — Completion Marker
 
-Branch: `phase-b/dexie-schema`
-Worktree: `/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-ad686ccc`
+**Branch:** `phase-c/trends-dashboard`
+**Worktree:** `.claude/worktrees/agent-aad25eb4`
+**Final SHA:** `0800458`
 
-## Task status
+## Task Statuses
 
-| Task | Description | Status | Commit SHA |
-|---|---|---|---|
-| 1 | Types + schema extension — types.ts, db.ts version(2), index.ts | DONE | `87f44b6` |
-| 2 | Seed helpers — seedDexie.ts + fake-indexeddb devDep | DONE | `158c47d` |
+| Task | Status | SHA |
+|------|--------|-----|
+| Task 1 — analyticsRouter | COMPLETE | 831ab0a |
+| Task 2 — Chart components | COMPLETE | 1ff6223 |
+| Task 3 — Insights page + nav | COMPLETE | ca964b6 |
+| Task 4 — Tests | COMPLETE | 0800458 |
 
 ## Notes
-
-- `src/lib/offline/types.ts`: 6 module cache interfaces all sharing base
-  fields (`serverId`, `facilityId`, `submittedAt`, `syncedAt`).
-- `src/lib/offline/db.ts`: version(1) untouched; version(2) adds 6 tables
-  with unique `serverId` primary keys.
-- `src/lib/offline/index.ts`: barrel re-exporting all db and types symbols.
-- `src/test/helpers/seedDexie.ts`: 6 seed functions using safe defaults and
-  `crypto.randomUUID()` for serverIds.
-- `fake-indexeddb ^6.0.0` added to devDependencies (not installed).
-- No push was performed. No PR was opened.
+- recharts declared in package.json; test stub at src/test/stubs/recharts.tsx
+- refrigeration brine trend: no shift column; returns shiftLabel "all" + TODO
+- Daily report completion: falls back to max(submittedTabs) if no checklists
+- Test count: 90 -> 106 (16 new tests, all passing)
