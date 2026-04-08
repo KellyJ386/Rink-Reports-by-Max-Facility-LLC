@@ -1,160 +1,91 @@
-# Phase C — Agent 2 (Anomaly Detection) Completion Marker
+# Phase D — Agent 2 (CSV/XLSX Exports) Completion Marker
 
 ## Branch
-`phase-c/anomaly-detection`
+`phase-d/csv-xlsx-exports`
 
 ## Worktree path
-`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-ad26ba3a`
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-ac005ad2`
 
 ## Task Status
 
-### Task 1 — Alerts table migration + TypeScript type
-**STATUS: COMPLETE**
-Commit: `4c40d6c`
+### Task 1 — exceljs + CSV/XLSX utility functions
+**STATUS: COMPLETE (prior run)**
+Commit: `4e0099a`
 
 Files:
-- `supabase/migrations/015_alerts.sql` — alerts table, 3 indexes
-  (facility, created_at DESC, unresolved partial), RLS policies
-  (SELECT + UPDATE for authenticated; INSERT intentionally absent —
-  only service-role cron writes rows), GRANT SELECT/UPDATE to
-  authenticated.
-- `src/lib/offline/types.ts` — `Alert` type appended (camelCase,
-  matches DB columns).
+- `src/server/exports/csv.ts` — `arrayToCsv` with UTF-8 BOM + comma/quote/newline escaping
+- `src/server/exports/xlsx.ts` — `createWorkbook`, `addWorksheet` (frozen header row, brand color, striped rows), `workbookToBase64`
 
-RLS uses `get_user_facility_id()` from `001_foundation.sql` (the
-canonical helper function name confirmed by reading that migration).
-
-### Task 2 — Detection logic
-**STATUS: COMPLETE**
-Commit: `3bf8346`
+### Task 2 — Per-module CSV/XLSX row formatters
+**STATUS: COMPLETE (prior run)**
+Commit: `5d21740`
 
 Files:
-- `src/server/anomaly/types.ts` — `DetectionResult` type
-- `src/server/anomaly/detectors/refrigerationDrift.ts`
-  - 90-day baseline per compressor per pressure field
-  - Last-3-readings average compared to baseline
-  - >15% above → warning; >25% → critical
-  - alertType: `refrigeration_drift`
-  - targetIdentifier: `compressor-{compressor_id}`
-- `src/server/anomaly/detectors/missedDailyReports.ts`
-  - Reads `daily_report_checklists` (no hardcoded tab names — Rule 2)
-  - Checks last 7 completed days per checklist
-  - 1 missed day = info, 2 = warning, 3+ = critical
-  - alertType: `missed_daily_report`
-  - targetIdentifier: `{YYYY-MM-DD}-{checklistId}`
-- `src/server/anomaly/detectors/airQualityEscalation.ts`
-  - Last 24 hours of air_quality_readings
-  - tier="action" → warning; tier="evacuate" → critical
-  - alertType: `air_quality_escalation`
-  - targetIdentifier: reading `submitted_at` ISO string
-- `src/server/anomaly/detectors/iceDepthThinSpots.ts`
-  - Last 3 completed ice_depth_sessions vs 90-day baseline
-  - Per-point measurements map (JSONB key = point number)
-  - 20-35% below baseline → warning; >35% → critical
-  - alertType: `ice_depth_thin_spot`
-  - targetIdentifier: `point-{pointKey}`
-- `src/server/anomaly/index.ts` — `runAllDetectors()` via
-  `Promise.allSettled`, Sentry capture for rejections
-- `src/lib/database.types.ts` — `alerts` table added (hand-written;
-  migration 015 post-dates last type generation)
+- `src/server/exports/formatters/dailyReport.ts` — fans out `answers` JSONB into one row per (tab × field), 6 headers
+- `src/server/exports/formatters/iceOperations.ts` — notes extraction from `answers` JSONB, 6 headers
+- `src/server/exports/formatters/refrigerationReadings.ts` — fans out `compressor_readings` array, one row per compressor, 12 headers; shift column marked TODO (not in migration)
+- `src/server/exports/formatters/airQualityReadings.ts` — splits `submitted_at` into Date + Time columns, 6 headers
+- `src/server/exports/formatters/incidents.ts` — falls back to `data` JSONB for type/description, 5 headers
 
-### Task 3 — Persistence + dedup
-**STATUS: COMPLETE**
-Commit: `20b204a`
-
-File: `src/server/anomaly/persist.ts`
-
-- `persistAlerts(results, supabase): Promise<{ inserted, skipped, errors }>`
-- Per result: SELECT with `.is("resolved_at", null)` + facility_id +
-  alert_type + target_identifier (null-safe: `.is()` for null values,
-  `.eq()` for non-null)
-- Existing unresolved match → skip; else INSERT
-- `Promise.allSettled` so one failure doesn't block the batch
-- Sentry capture for each rejection
-
-### Task 4 — Vercel cron
-**STATUS: COMPLETE**
-Commit: `a8bc4b7`
+### Task 3 — tRPC CSV + XLSX procedures
+**STATUS: COMPLETE (this run)**
+Commit: `29aaf98`
 
 Files:
-- `src/app/api/cron/anomaly-scan/route.ts`
-  - GET handler (Vercel cron calls GET)
-  - Verifies `Authorization: Bearer {CRON_SECRET}` → 401 if wrong
-  - `createSupabaseServiceRoleClient()` — bypasses RLS for cross-facility
-  - Fetches all facility IDs from `facilities` table
-  - `Promise.allSettled` per facility: `runAllDetectors` → `persistAlerts`
-  - Returns `{ ok, scanned, alertsCreated }`; never 500s — Sentry absorbs errors
-- `vercel.json` — hourly cron: `"0 * * * *"` on `/api/cron/anomaly-scan`
-- `.env.example` — `CRON_SECRET=` appended
+- `src/server/trpc/routers/exports.ts` — 10 procedures (Csv + Xlsx suffix for each of 5 modules):
+  `dailyReportCsv`, `dailyReportXlsx`, `iceOperationsCsv`, `iceOperationsXlsx`,
+  `refrigerationCsv`, `refrigerationXlsx`, `airQualityCsv`, `airQualityXlsx`,
+  `incidentsCsv`, `incidentsXlsx`.
+  Each returns `{ base64, filename, mimeType }`.
+- `src/server/trpc/routers/index.ts` — registered `exports: exportsRouter`
 
-### Task 5 — tRPC alerts router
-**STATUS: COMPLETE**
-Commit: `4fc11d6`
+### Task 4 — ExportMenu dropdown component
+**STATUS: COMPLETE (this run)**
+Commit: `0fe3a62`
 
-Files:
-- `src/server/trpc/routers/alerts.ts`
-  - `list` query: `{ resolved, severity?, limit }` → `Alert[]`
-    ordered by `created_at DESC`, filtered by `ctx.facilityId`
-  - `resolve` mutation: verifies ownership → sets `resolved_at = now()`,
-    `resolved_by = ctx.user.id`
-  - Both use `protectedProcedure` (Rule 8)
-- `src/server/trpc/routers/index.ts` — `alerts: alertsRouter` registered
+File: `src/components/ui/ExportMenu.tsx`
+- `"use client"` component
+- Props: `{ onExportPdf?, onExportCsv, onExportXlsx, isExporting }`
+- "Export ▾" button toggles dropdown with PDF (optional), CSV, Excel options
+- Spinner + disabled state when `isExporting === true`
+- Click-outside close via `useRef` + `document.addEventListener("mousedown", …)`
+- Tailwind-only, brand tokens (#003B6F, #4DFF00, #F42A2A)
 
-### Task 6 — Tests
-**STATUS: COMPLETE — 15 new tests, 105 total passing**
-Commit: `32878d4`
+### Task 5 — Tests
+**STATUS: COMPLETE (this run)**
+Commit: `2a33ee0`
 
 Files:
-- `src/test/anomaly/refrigerationDrift.test.ts` (5 tests)
-  - <3 recent → no alerts
-  - within threshold → no alerts
-  - +20% → warning
-  - +30% → critical
-  - no baseline → no alerts
-- `src/test/anomaly/persist.test.ts` (5 tests)
-  - no existing → inserted=1
-  - existing → skipped=1
-  - SELECT error → error counted, others processed
-  - empty batch → zeros
-  - correct INSERT fields
-- `src/test/anomaly/cron.route.test.ts` (5 tests)
-  - missing header → 401
-  - wrong secret → 401
-  - missing env var → 401
-  - valid secret → 200 summary
-  - runAllDetectors called per facility
+- `src/test/exports/csv.test.ts` — 8 tests:
+  BOM presence, comma escaping, quote doubling, null→empty (not "null"),
+  undefined→empty, numeric pass-through, newline escaping, structure check
+- `src/test/exports/formatters.test.ts` — 25 tests:
+  All 5 formatters covered: header counts, non-empty rows, correct column
+  values, null/missing field safety, refrigeration 3-compressor fan-out,
+  air quality date/time split, incident JSONB fallback
 
-## Commit SHAs (in order)
-1. `4c40d6c` — feat(alerts): create alerts table migration + RLS policies
-2. `3bf8346` — feat(anomaly): detection logic for 4 anomaly types
-3. `20b204a` — feat(anomaly): alert deduplication + Supabase persistence
-4. `a8bc4b7` — feat(anomaly): Vercel cron job — hourly anomaly scan
-5. `4fc11d6` — feat(anomaly): tRPC alerts procedures — list + resolve
-6. `32878d4` — test: anomaly detection, persistence, cron auth
-7. (this file) — chore: phase-c agent 2 completion marker
+All 33 new tests pass. 167/168 pre-existing tests pass (1 pre-existing
+flaky test in `usePullChannel.test.ts` unrelated to this branch).
 
-## Notes for downstream agents (Agent 3 — Notifications)
+## Commit SHAs (in order on this branch)
 
-### New surface area
-- `appRouter.alerts.list` and `appRouter.alerts.resolve` are available
-  for any UI that wants to display or dismiss alerts.
-- `Alert` type is in `src/lib/offline/types.ts`.
-- `runAllDetectors(facilityId, supabase)` returns `DetectionResult[]`
-  — can be reused if Agent 3 wants to trigger notifications from the
-  same scan results.
-- `persistAlerts` returns `{ inserted }` — the count of newly created
-  alerts can be used to decide whether to fan-out notifications.
+1. `4e0099a` — feat(exports): exceljs + CSV/XLSX utility functions (prior run)
+2. `5d21740` — feat(exports): per-module CSV/XLSX row formatters (prior run)
+3. `29aaf98` — feat(exports): tRPC CSV + XLSX procedures for all 5 modules
+4. `0fe3a62` — feat(exports): ExportMenu dropdown component
+5. `2a33ee0` — test: CSV utilities + module formatters
+6. (this file) — chore: phase-d agent 2 completion marker
 
-### Alerts table schema highlights
-- `resolved_at IS NULL` = open alert (the dedup key)
-- `severity` ∈ `{ info, warning, critical }`
-- `alert_type` + `target_identifier` uniquely identify the anomaly
-  context within a facility (used for dedup)
-- `metadata JSONB` contains detector-specific detail (pressures,
-  depths, checklist names, etc.)
-- Service-role only for INSERT; authenticated users can SELECT + UPDATE
+## Final HEAD SHA
+`2a33ee0` (before this commit)
 
-### What was NOT built (Phase C Agent 3 scope)
-- No notification fan-out (email / SMS / web push)
-- No alerts UI component — tRPC endpoint is ready; UI is Agent 3+
-- No Dexie cache for alerts — not needed (alerts are not offline-writable)
+## Merge Notes for Phase D integration
+
+- All tRPC procedures use `Csv` and `Xlsx` suffixes to avoid conflicts
+  with Phase D Agent 1's `*Pdf` procedures.
+- Both agents export from `src/server/trpc/routers/exports.ts`. The merge
+  should combine both procedure sets into one `exportsRouter` object.
+- The `exports: exportsRouter` line in `index.ts` appears in both branches;
+  whoever merges last should keep one registration line.
+- `ExportMenu` accepts `onExportPdf?` as optional so it works without PDF
+  support and can be wired to Agent 1's PDF mutations once merged.
