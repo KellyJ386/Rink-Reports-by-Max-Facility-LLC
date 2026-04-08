@@ -20,6 +20,16 @@ import {
   autoSuggestSchedule,
   type ShiftOpening,
 } from "@/modules/scheduling/auto-suggest";
+import { parseIcsToShifts } from "@/server/scheduling/importers/icsParser";
+import { normalizeISportsman } from "@/server/scheduling/importers/adapters/iSportsmanAdapter";
+import { normalizeMaxgalaxy } from "@/server/scheduling/importers/adapters/maxgalaxyAdapter";
+import { normalizeActiveNetwork } from "@/server/scheduling/importers/adapters/activeNetworkAdapter";
+import {
+  matchStaff,
+  type StaffMember,
+  type StaffMatch,
+} from "@/server/scheduling/importers/matchStaff";
+import type { ParsedShift } from "@/server/scheduling/importers/types";
 
 /**
  * Staff-facing + manager Scheduling sub-router. Mounted at the top
@@ -545,5 +555,188 @@ export const schedulingRouter = router({
         assigned_user_id: s.assigned_user_id,
         conflict_reason: s.conflict_reason,
       }));
+    }),
+
+  // -------------------------------------------------------------------
+  // Import: preview + commit
+  // -------------------------------------------------------------------
+  previewImport: protectedProcedure
+    .input(
+      z.object({
+        content: z.string().min(1),
+        format: z.enum(["ics", "isportsman", "maxgalaxy", "active_network"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId) throw new TRPCError({ code: "FORBIDDEN" });
+      await requireManager(ctx);
+
+      // 1. Route to the right parser/adapter
+      let shifts: ParsedShift[];
+      if (input.format === "ics") {
+        shifts = parseIcsToShifts(input.content);
+      } else if (input.format === "isportsman") {
+        shifts = parseIcsToShifts(normalizeISportsman(input.content));
+      } else if (input.format === "maxgalaxy") {
+        shifts = normalizeMaxgalaxy(input.content);
+      } else {
+        shifts = normalizeActiveNetwork(input.content);
+      }
+
+      // 2. Fetch roster for this facility (users with any role, for matching)
+      const { data: rosterData, error: rosterErr } = await ctx.supabase
+        .from("user_profiles")
+        .select("user_id, full_name, email")
+        .eq("facility_id", ctx.facilityId)
+        .neq("role", "viewer");
+      if (rosterErr) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: rosterErr.message,
+        });
+      }
+      const roster: StaffMember[] = (rosterData ?? []).map((r) => ({
+        id: r.user_id,
+        name: r.full_name ?? "",
+        email: r.email ?? null,
+      }));
+
+      // 3. Match staff for each shift
+      const staffMatchesWithIndex: Array<StaffMatch & { shiftIndex: number }> =
+        [];
+      for (let i = 0; i < shifts.length; i++) {
+        const shift = shifts[i]!;
+        // Use first attendee email if available, otherwise shift title for identifier
+        const identifier =
+          shift.attendees.length > 0 ? shift.attendees[0]! : shift.title;
+        const match = matchStaff(identifier, roster);
+        staffMatchesWithIndex.push({ ...match, shiftIndex: i });
+      }
+
+      // 4. Check for overlaps with existing shifts for this facility
+      const { data: scheduleIds } = await ctx.supabase
+        .from("scheduling_schedules")
+        .select("id")
+        .eq("facility_id", ctx.facilityId);
+
+      const ids = (scheduleIds ?? []).map((s) => s.id);
+
+      type ConflictEntry = {
+        shift: ParsedShift;
+        conflictsWith: { id: string; startAt: string; endAt: string };
+      };
+      const conflicts: ConflictEntry[] = [];
+
+      if (ids.length > 0) {
+        for (const shift of shifts) {
+          const { data: overlapping } = await ctx.supabase
+            .from("scheduling_shifts")
+            .select("id, start_at, end_at")
+            .in("schedule_id", ids)
+            .lt("start_at", shift.endAt.toISOString())
+            .gt("end_at", shift.startAt.toISOString());
+          for (const existing of overlapping ?? []) {
+            conflicts.push({
+              shift,
+              conflictsWith: {
+                id: existing.id,
+                startAt: existing.start_at,
+                endAt: existing.end_at,
+              },
+            });
+          }
+        }
+      }
+
+      // 5. Collect unmatched staff identifiers
+      const unmatchedStaff = staffMatchesWithIndex
+        .filter((m) => m.matched === null && m.parsed)
+        .map((m) => m.parsed);
+
+      return {
+        shifts,
+        staffMatches: staffMatchesWithIndex,
+        conflicts,
+        unmatchedStaff: [...new Set(unmatchedStaff)],
+      };
+    }),
+
+  commitImport: protectedProcedure
+    .input(
+      z.object({
+        shifts: z.array(
+          z.object({
+            externalId: z.string(),
+            title: z.string(),
+            startAt: z.string().datetime(),
+            endAt: z.string().datetime(),
+            location: z.string().nullable().optional(),
+            staffId: z.string().uuid().nullable(),
+            scheduleId: z.string().uuid(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId) throw new TRPCError({ code: "FORBIDDEN" });
+      await requireManager(ctx);
+
+      let imported = 0;
+      let skipped = 0;
+
+      for (const shift of input.shifts) {
+        // Skip shifts without a matched staff member
+        if (!shift.staffId) {
+          skipped++;
+          continue;
+        }
+
+        // Verify the scheduleId belongs to this facility
+        const { data: schedule } = await ctx.supabase
+          .from("scheduling_schedules")
+          .select("id")
+          .eq("id", shift.scheduleId)
+          .eq("facility_id", ctx.facilityId)
+          .maybeSingle();
+
+        if (!schedule) {
+          skipped++;
+          continue;
+        }
+
+        // We need a position_id — use a placeholder approach: the first
+        // position for this facility. If no positions exist, skip.
+        const { data: firstPosition } = await ctx.supabase
+          .from("scheduling_positions")
+          .select("id")
+          .eq("facility_id", ctx.facilityId)
+          .order("position", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (!firstPosition) {
+          skipped++;
+          continue;
+        }
+
+        const { error } = await ctx.supabase
+          .from("scheduling_shifts")
+          .insert({
+            schedule_id: shift.scheduleId,
+            user_id: shift.staffId,
+            position_id: firstPosition.id,
+            start_at: shift.startAt,
+            end_at: shift.endAt,
+            notes: shift.location ?? null,
+          });
+
+        if (error) {
+          skipped++;
+        } else {
+          imported++;
+        }
+      }
+
+      return { imported, skipped };
     }),
 });
