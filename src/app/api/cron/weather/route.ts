@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   const supabase = createSupabaseServiceRoleClient();
 
   // 2. Get today's ISO date string (YYYY-MM-DD)
-  const todayISODate = new Date().toISOString().split("T")[0];
+  const todayISODate = new Date().toISOString().split("T")[0] ?? "";
 
   // 3. Fetch all facility IDs
   const { data: facilities, error: facilitiesErr } = await supabase

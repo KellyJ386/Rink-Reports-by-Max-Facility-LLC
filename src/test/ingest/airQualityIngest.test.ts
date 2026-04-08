@@ -71,13 +71,13 @@ vi.mock("@supabase/supabase-js", () => ({
       if (table === "user_profiles") {
         return {
           select: vi.fn(() => ({
-            eq: vi.fn(function () {
+            eq: vi.fn(function (this: unknown) {
               return this;
             }),
-            in: vi.fn(function () {
+            in: vi.fn(function (this: unknown) {
               return this;
             }),
-            limit: vi.fn(function () {
+            limit: vi.fn(function (this: unknown) {
               return this;
             }),
             maybeSingle: vi.fn(async () => ({
@@ -90,7 +90,7 @@ vi.mock("@supabase/supabase-js", () => ({
       if (table === "facility_config") {
         return {
           select: configSelectSpy.mockReturnValue({
-            eq: vi.fn(function () {
+            eq: vi.fn(function (this: unknown) {
               return this;
             }),
             maybeSingle: vi.fn(async () => ({
@@ -112,13 +112,13 @@ vi.mock("@supabase/supabase-js", () => ({
       if (table === "alerts") {
         return {
           select: alertSelectSpy.mockReturnValue({
-            eq: vi.fn(function () {
+            eq: vi.fn(function (this: unknown) {
               return this;
             }),
-            is: vi.fn(function () {
+            is: vi.fn(function (this: unknown) {
               return this;
             }),
-            limit: vi.fn(function () {
+            limit: vi.fn(function (this: unknown) {
               return this;
             }),
             maybeSingle: vi.fn(async () => ({
@@ -134,7 +134,7 @@ vi.mock("@supabase/supabase-js", () => ({
       }
       return {
         select: vi.fn(() => ({
-          eq: vi.fn(function () {
+          eq: vi.fn(function (this: unknown) {
             return this;
           }),
           maybeSingle: vi.fn(async () => ({

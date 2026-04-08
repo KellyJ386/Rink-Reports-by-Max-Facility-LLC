@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc";
  */
 export function WeatherCard() {
   // Get today's date in YYYY-MM-DD format
-  const todayDate = new Date().toISOString().split("T")[0];
+  const todayDate = new Date().toISOString().split("T")[0] ?? "";
 
   const { data: weather, isLoading } = trpc.weather.getForDate.useQuery(
     { date: todayDate },

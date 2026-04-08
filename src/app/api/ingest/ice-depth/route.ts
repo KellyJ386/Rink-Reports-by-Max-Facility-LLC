@@ -118,12 +118,39 @@ export async function POST(req: Request) {
       sessionId = existingSession.id;
       currentMeasurements = toMeasurements(existingSession.measurements);
     } else {
+      // Look up a facility admin to satisfy the submitted_by FK (same pattern
+      // as the refrigeration ingest endpoint). TODO: when `source` column is
+      // added, make submitted_by nullable for sensor rows.
+      const { data: adminUser } = await supabase
+        .from("user_profiles")
+        .select("user_id")
+        .eq("facility_id", device.facilityId)
+        .in("role", ["admin", "super_admin"])
+        .limit(1)
+        .maybeSingle();
+
+      if (!adminUser) {
+        await writeIngestLog(supabase, {
+          deviceId: device.deviceId,
+          facilityId: device.facilityId,
+          endpoint: "/api/ingest/ice-depth",
+          payloadHash,
+          status: "rejected",
+          rejectionReason: "no admin user found for facility",
+        });
+        return NextResponse.json(
+          { status: "facility_misconfigured" },
+          { status: 500 },
+        );
+      }
+
       // Create a new draft session
       const { data: newSession, error: createError } = await supabase
         .from("ice_depth_sessions")
         .insert({
           facility_id: device.facilityId,
           template_id: parsed.template_id,
+          submitted_by: adminUser.user_id,
           submitted_at: new Date().toISOString(),
           status: "draft",
           resurfacing_status: null,

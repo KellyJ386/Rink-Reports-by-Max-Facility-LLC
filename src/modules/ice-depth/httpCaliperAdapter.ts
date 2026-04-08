@@ -1,7 +1,6 @@
 "use client";
 
-import crypto from "crypto";
-import type { CaliperReading, CaliperListener, CaliperConnectionListener } from "@/modules/ice-depth/caliper";
+// Uses the global Web Crypto API (window.crypto.subtle) — no Node crypto import.
 
 /**
  * HttpCaliperAdapter — Remote caliper HTTP bridge

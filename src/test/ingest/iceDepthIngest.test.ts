@@ -57,45 +57,44 @@ vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === "ice_depth_sessions") {
+        // Note: selectSpy/insertSpy/updateSpy return values are set in
+        // beforeEach so that per-test overrides via .mockReturnValue()
+        // take effect without being clobbered on every from() call.
         return {
-          select: selectSpy.mockReturnValue({
-            eq: vi.fn(function () {
+          select: selectSpy,
+          insert: insertSpy,
+          update: updateSpy,
+        };
+      }
+      if (table === "user_profiles") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(function (this: unknown) {
               return this;
             }),
-            gte: vi.fn(function () {
+            in: vi.fn(function (this: unknown) {
+              return this;
+            }),
+            limit: vi.fn(function (this: unknown) {
               return this;
             }),
             maybeSingle: vi.fn(async () => ({
-              data: null, // No existing session by default
+              data: { user_id: "admin-user-123" },
               error: null,
             })),
-          }),
-          insert: insertSpy.mockReturnValue({
-            select: vi.fn(function () {
-              return this;
-            }),
-            single: vi.fn(async () => ({
-              data: { id: "session-123" },
-              error: null,
-            })),
-          }),
-          update: updateSpy.mockReturnValue({
-            eq: vi.fn(async () => ({
-              error: null,
-            })),
-          }),
+          })),
         };
       }
       if (table === "alerts") {
         return {
           select: alertSelectSpy.mockReturnValue({
-            eq: vi.fn(function () {
+            eq: vi.fn(function (this: unknown) {
               return this;
             }),
-            is: vi.fn(function () {
+            is: vi.fn(function (this: unknown) {
               return this;
             }),
-            limit: vi.fn(function () {
+            limit: vi.fn(function (this: unknown) {
               return this;
             }),
             maybeSingle: vi.fn(async () => ({
@@ -111,7 +110,7 @@ vi.mock("@supabase/supabase-js", () => ({
       }
       return {
         select: vi.fn(() => ({
-          eq: vi.fn(function () {
+          eq: vi.fn(function (this: unknown) {
             return this;
           }),
           maybeSingle: vi.fn(async () => ({
@@ -134,6 +133,36 @@ describe("POST /api/ingest/ice-depth", () => {
     });
     mockRateLimit.mockReturnValue(true);
     mockFindLog.mockResolvedValue(false);
+
+    // Default: no existing session (tests can override with selectSpy.mockReturnValue)
+    selectSpy.mockReturnValue({
+      eq: vi.fn(function (this: unknown) {
+        return this;
+      }),
+      gte: vi.fn(function (this: unknown) {
+        return this;
+      }),
+      maybeSingle: vi.fn(async () => ({
+        data: null,
+        error: null,
+      })),
+    });
+    // Default insert: returns new session-123
+    insertSpy.mockReturnValue({
+      select: vi.fn(function (this: unknown) {
+        return this;
+      }),
+      single: vi.fn(async () => ({
+        data: { id: "session-123" },
+        error: null,
+      })),
+    });
+    // Default update: no error
+    updateSpy.mockReturnValue({
+      eq: vi.fn(async () => ({
+        error: null,
+      })),
+    });
   });
 
   it("New point_index, no existing session → creates session, appends measurement", async () => {
@@ -149,7 +178,7 @@ describe("POST /api/ingest/ice-depth", () => {
         "x-signature": "sig",
       },
       body: JSON.stringify({
-        template_id: "tpl-uuid",
+        template_id: "11111111-1111-4111-8111-111111111111",
         point_index: 1,
         depth_inches: 2.5,
         reading_timestamp: new Date().toISOString(),
@@ -171,10 +200,10 @@ describe("POST /api/ingest/ice-depth", () => {
 
   it("Existing session, existing point_index → measurement replaced", async () => {
     selectSpy.mockReturnValue({
-      eq: vi.fn(function () {
+      eq: vi.fn(function (this: unknown) {
         return this;
       }),
-      gte: vi.fn(function () {
+      gte: vi.fn(function (this: unknown) {
         return this;
       }),
       maybeSingle: vi.fn(async () => ({
@@ -198,7 +227,7 @@ describe("POST /api/ingest/ice-depth", () => {
         "x-signature": "sig",
       },
       body: JSON.stringify({
-        template_id: "tpl-uuid",
+        template_id: "11111111-1111-4111-8111-111111111111",
         point_index: 1,
         depth_inches: 2.5,
         reading_timestamp: new Date().toISOString(),
@@ -230,7 +259,7 @@ describe("POST /api/ingest/ice-depth", () => {
         "x-signature": "sig",
       },
       body: JSON.stringify({
-        template_id: "tpl-uuid",
+        template_id: "11111111-1111-4111-8111-111111111111",
         point_index: 5,
         depth_inches: 0.5,
         reading_timestamp: new Date().toISOString(),
@@ -261,7 +290,7 @@ describe("POST /api/ingest/ice-depth", () => {
         "x-signature": "sig",
       },
       body: JSON.stringify({
-        template_id: "tpl-uuid",
+        template_id: "11111111-1111-4111-8111-111111111111",
         point_index: 10,
         depth_inches: 2.0,
         reading_timestamp: new Date().toISOString(),
@@ -293,7 +322,7 @@ describe("POST /api/ingest/ice-depth", () => {
         "x-signature": "sig",
       },
       body: JSON.stringify({
-        template_id: "tpl-uuid",
+        template_id: "11111111-1111-4111-8111-111111111111",
         point_index: 1,
         depth_inches: 2.5,
         reading_timestamp: new Date().toISOString(),

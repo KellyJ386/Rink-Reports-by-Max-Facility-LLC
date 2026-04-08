@@ -48,9 +48,35 @@ export async function GET(
 
   const facilityName = facility.name ?? "RinkReports";
 
-  // Fetch shifts for next 90 days
+  // Fetch shifts for next 90 days.
+  // scheduling_shifts → scheduling_schedules (schedule_id) → facility_id.
+  // Step 1: get the facility's schedule IDs; step 2: query shifts by
+  // schedule_id IN (…). PostgREST nested filters are too fragile here.
   const now = new Date();
   const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+  const { data: schedules, error: schedulesError } = await supabase
+    .from("scheduling_schedules")
+    .select("id")
+    .eq("facility_id", facilityId);
+  if (schedulesError) {
+    return new NextResponse("Internal error", { status: 500 });
+  }
+  const scheduleIds = (schedules ?? []).map((s) => s.id);
+  if (scheduleIds.length === 0) {
+    const cal = ical({
+      name: `${facilityName} Schedule`,
+      prodId: "//RinkReports//Schedule//EN",
+    });
+    return new NextResponse(cal.toString(), {
+      status: 200,
+      headers: {
+        "Content-Type": "text/calendar; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="schedule.ics"',
+        "Cache-Control": "no-cache",
+      },
+    });
+  }
 
   const { data: shifts, error: shiftsError } = await supabase
     .from("scheduling_shifts")
@@ -63,12 +89,11 @@ export async function GET(
       position_id,
       notes,
       schedule_id,
-      schedule:schedule_id (facility_id),
       staff:user_id (full_name),
       position:position_id (name)
     `,
     )
-    .eq("schedule:facility_id", facilityId)
+    .in("schedule_id", scheduleIds)
     .gte("start_at", now.toISOString())
     .lte("start_at", in90.toISOString())
     .order("start_at", { ascending: true });

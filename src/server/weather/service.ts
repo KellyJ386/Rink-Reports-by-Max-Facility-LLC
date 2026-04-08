@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/database.types";
+import type { Database, Json } from "@/lib/database.types";
 import * as Sentry from "@sentry/nextjs";
 
 export interface DailyWeather {
@@ -122,7 +122,7 @@ export async function fetchWeatherForFacility(
         snow_in: weather.snowIn,
         wind_mph: weather.windMph,
         conditions: weather.conditions,
-        raw_response: weather.rawResponse,
+        raw_response: weather.rawResponse as unknown as Json,
       },
       { onConflict: "facility_id,weather_date" },
     );
@@ -232,7 +232,7 @@ async function fetchOpenMeteoDaily(
       snowIn: snow,
       windMph: wind,
       conditions: null, // Open-Meteo daily endpoint doesn't include conditions
-      rawResponse: data,
+      rawResponse: data as unknown as Record<string, unknown>,
     };
   } catch {
     return null;

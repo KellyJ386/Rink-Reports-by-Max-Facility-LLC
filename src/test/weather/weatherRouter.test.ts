@@ -29,9 +29,14 @@ const TEST_FACILITY_ID = "fac-weather-test";
 
 function buildCtx(facilityId: string | null = TEST_FACILITY_ID): TRPCContext {
   return {
-    session: { user: { id: "user-1", email: "test@example.com" } } as any,
-    facilityId,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: {} as any,
+    // Keep the user authenticated even when facilityId is null — the
+    // inner procedure then throws FORBIDDEN rather than the outer
+    // protectedProcedure middleware throwing UNAUTHORIZED.
+    user: { id: "user-1", email: "test@example.com" } as unknown as TRPCContext["user"],
+    facilityId,
+    role: "staff",
   };
 }
 

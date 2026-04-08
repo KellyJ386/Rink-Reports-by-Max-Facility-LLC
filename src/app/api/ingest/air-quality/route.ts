@@ -107,17 +107,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // Step 6: Compute tier from facility config thresholds
+    // Step 6: Compute tier from facility config thresholds.
+    // facility_config is a key-value store; air-quality thresholds live at
+    // (module='air-quality', key='thresholds') with a JSON value.
     let tier: Tier = "normal";
     try {
-      const { data: config } = await supabase
+      const { data: thresholdsRow } = await supabase
         .from("facility_config")
-        .select("air_quality")
+        .select("value")
         .eq("facility_id", device.facilityId)
+        .eq("module", "air-quality")
+        .eq("key", "thresholds")
         .maybeSingle();
 
-      if (config?.air_quality) {
-        const configData = config.air_quality as {
+      if (thresholdsRow?.value) {
+        const configData = thresholdsRow.value as {
           co_caution?: number | null;
           co_action?: number | null;
           co_evacuate?: number | null;

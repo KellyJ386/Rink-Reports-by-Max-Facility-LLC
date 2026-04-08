@@ -1,7 +1,6 @@
 import "server-only";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ICAL = require("ical.js") as typeof import("ical.js");
+import ICAL from "ical.js";
 
 import type { ParsedShift } from "./types";
 
@@ -19,15 +18,17 @@ const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 export function parseIcsToShifts(icsContent: string): ParsedShift[] {
   const results: ParsedShift[] = [];
 
-  let jcalData: unknown;
+  let jcalData: unknown[];
   try {
-    jcalData = ICAL.parse(icsContent);
+    // ICAL.parse returns a jCal array for a single calendar.
+    jcalData = ICAL.parse(icsContent) as unknown[];
   } catch (err) {
     console.warn("[icsParser] Failed to parse ICS content:", err);
     return results;
   }
 
-  const comp = new ICAL.Component(jcalData);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const comp = new ICAL.Component(jcalData as any);
 
   // Register all VTIMEZONE components so RRULE expansion uses correct
   // local times. ical.js handles this automatically when you create the
@@ -60,8 +61,8 @@ export function parseIcsToShifts(icsContent: string): ParsedShift[] {
       const attendees: string[] = [];
       const attendeeProps = vevent.getAllProperties("attendee");
       for (const prop of attendeeProps) {
-        const val = prop.getFirstValue<string>();
-        if (val) {
+        const val = prop.getFirstValue();
+        if (typeof val === "string" && val) {
           // Attendee values are typically "mailto:email@example.com"
           attendees.push(val.replace(/^mailto:/i, ""));
         }

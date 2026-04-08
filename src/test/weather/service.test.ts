@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { fetchWeatherForFacility } from "@/server/weather/service";
 
 vi.mock("@/lib/supabase-server");
-vi.mock("@sentry/nextjs");
+vi.mock("@sentry/nextjs", () => ({
+  captureException: vi.fn(),
+}));
 
 describe("weather/service", () => {
   let mockSupabase: any;
@@ -86,10 +88,10 @@ describe("weather/service", () => {
         }),
       };
 
-      // Upsert
-      const upsertMockChain = {
-        upsert: vi.fn().mockResolvedValue({ error: null }),
-      };
+      // Upsert — attach .upsert() to the daily_weather chain so the second
+      // .from("daily_weather") call (for upsert after cache miss) finds it.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (cachedMockChain as any).upsert = vi.fn().mockResolvedValue({ error: null });
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === "daily_weather") {
@@ -98,7 +100,7 @@ describe("weather/service", () => {
         if (table === "facility_config") {
           return configMockChain;
         }
-        return upsertMockChain;
+        return cachedMockChain;
       });
 
       // Mock Open-Meteo response
@@ -161,10 +163,10 @@ describe("weather/service", () => {
         }),
       };
 
-      // Upsert
-      const upsertMockChain = {
-        upsert: vi.fn().mockResolvedValue({ error: null }),
-      };
+      // Upsert — attach .upsert() to the daily_weather chain so the second
+      // .from("daily_weather") call (for upsert after cache miss) finds it.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (cachedMockChain as any).upsert = vi.fn().mockResolvedValue({ error: null });
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === "daily_weather") {
@@ -173,7 +175,7 @@ describe("weather/service", () => {
         if (table === "facility_config") {
           return configMockChain;
         }
-        return upsertMockChain;
+        return cachedMockChain;
       });
 
       // Mock Zippopotam response
