@@ -1,43 +1,73 @@
-# Agent 3 (Components) — Phase A Completion
+# Phase C — Agent 3 Completion Marker
 
-Branch: `phase-a/components`
-Worktree: `/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-ac6f0a82`
+## Branch
+`phase-c/notifications`
 
-## Task Status
+## Final SHA
+`91b8c36`
 
-### Task 9 — UI Component Library — DONE
-Commit: `38b2168` — `feat: Header, Sidebar, MobileNav, OfflineBanner, SyncStatus`
+## Worktree
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-a189b649`
 
-Files:
-- `src/components/layout/Header.tsx` — props: facilityName, userName, syncStatus, pendingCount?, onMenuToggle. Logo text "RinkReports" (no `/public/logo.png` present, used text fallback in brand navy). Sync badge with green/yellow/red dots. Hamburger only below `lg:`.
-- `src/components/layout/Sidebar.tsx` — props: navItems, activePath. Hidden below `lg:`. Active items get `border-left: 3px solid var(--color-brand-green)` and a tinted green background.
-- `src/components/layout/MobileNav.tsx` — props: isOpen, onClose, navItems. Fixed full-screen overlay, slide-in panel via `translate-x`, backdrop click closes, item click calls onClose.
-- `src/components/layout/OfflineBanner.tsx` — internal `useOnlineStatus` hook. SSR-safe (initial state `true`). Returns `null` when online; sticky amber banner with white text when offline.
-- `src/components/layout/SyncStatus.tsx` — three states: pending+Retry / Synced HH:MM / Never synced.
-- `src/components/layout/index.ts` — re-exports all five plus types.
-- `src/components/ui/index.ts` — empty barrel `export {};`.
-- `src/app/globals.css` — added `--color-brand-*` tokens under `:root`. Tailwind v4 `@theme` palette already mirrored these via `--color-navy/green/grey/yellow/red`, so the brand-prefixed names are aliases for non-Tailwind `var(...)` consumers.
+## Task Statuses
 
-### Task 10 — Dashboard Layout Migration — DONE
-Commit: `68d00d5` — `refactor: migrate dashboard layout to component library`
+| Task | Status | SHA |
+|------|--------|-----|
+| Task 1 — user_notification_prefs table + RLS | COMPLETE (by prior commit) | 27cb4ca |
+| Task 2 — Email / SMS / Push channel implementations | COMPLETE (by prior commit) | 6b30f40 |
+| Task 3 — Web push subscription endpoint + hook | COMPLETE | 14b3253 |
+| Task 4 — Fan-out service wired into anomaly cron | COMPLETE | af97310 |
+| Task 5 — Admin notification preferences UI | COMPLETE | f638248 |
+| Task 6 — Tests (fan-out + push subscribe) | COMPLETE | 91b8c36 |
 
-Files:
-- `src/app/(dashboard)/_components/DashboardShell.tsx` (NEW, "use client") — owns mobile-menu state via `useState`, reads pathname via `usePathname`, renders `OfflineBanner + Header + (optional headerActions row) + Sidebar + main + MobileNav`. Accepts a `headerActions?: ReactNode` slot so the server layout can pass the existing Admin link + SignOutButton without DashboardShell knowing about auth.
-- `src/app/(dashboard)/layout.tsx` (REFACTORED) — keeps the server-side auth gate (user fetch, profile fetch, facility fetch, redirects). Builds `navItems` from the dashboard route folders (dashboard, daily-reports, ice-operations, ice-depth, refrigeration, air-quality, incidents, scheduling, communications, admin). Passes `syncStatus="synced"` and `pendingCount={0}` as plausible defaults — sync engine wiring is out of scope. Renders `<DashboardShell>` wrapping `{children}`.
+## Files Created / Modified
 
-No page files were modified.
+### Migrations
+- `supabase/migrations/017_notification_prefs.sql` — user_notification_prefs table + RLS
+- `supabase/migrations/018_push_subscriptions.sql` — push_subscriptions table + RLS
 
-## Notes / Skipped
+### Server — notification channels
+- `src/server/notifications/email.ts` — Resend email with branded HTML template
+- `src/server/notifications/sms.ts` — Twilio SMS
+- `src/server/notifications/push.ts` — web-push with VAPID
+- `src/server/notifications/fanout.ts` — fan-out dispatcher (fire-and-forget, allSettled)
 
-- `/public/logo.png` does not exist, so Header uses the text fallback `"RinkReports"` in brand navy as instructed.
-- `npx tsc --noEmit` produced only environment errors (missing `node_modules` for `react`, `next`, etc. in this worktree). No structural / type errors specific to the new files.
-- Brand tokens `--color-brand-*` were already present as `--color-navy/green/grey/yellow/red` under Tailwind v4 `@theme`. I added the `--color-brand-*` aliases under `:root` per spec so components can use `var(--color-brand-green)` directly.
-- The original layout had an "Admin" link and "Sign out" button in its custom header. Header.tsx has no actions slot in its prop API, so I added a `headerActions` slot to `DashboardShell` and render it as a thin secondary bar beneath the Header. This preserves existing functionality without modifying Header's prop contract.
-- Branch `phase-a/components` already existed at session start; this run committed onto it (did not recreate).
+### Server — tRPC
+- `src/server/trpc/routers/notifications.ts` — getNotificationPrefs + upsertNotificationPrefs
+- `src/server/trpc/routers/index.ts` — registered notificationsRouter
 
-## Commits (this session)
+### Server — anomaly
+- `src/server/anomaly/persist.ts` — extended PersistResult with insertedAlerts
 
-```
-68d00d5 refactor: migrate dashboard layout to component library
-38b2168 feat: Header, Sidebar, MobileNav, OfflineBanner, SyncStatus
-```
+### Cron
+- `src/app/api/cron/anomaly-scan/route.ts` — wired fanOutAlert per new alert
+
+### Push subscription API
+- `src/app/api/push/subscribe/route.ts` — POST handler; validates, resolves facilityId, upserts
+
+### Hooks
+- `src/hooks/usePushSubscription.ts` — subscribe/unsubscribe with VAPID + SW registration
+
+### UI
+- `src/app/(dashboard)/admin/_components/NotificationPrefsCard.tsx` — full preferences card
+- `src/app/(dashboard)/admin/page.tsx` — NotificationPrefsCard wired in
+
+### Types
+- `src/lib/offline/types.ts` — NotificationPrefs type (already present from prior commit)
+
+### Tests
+- `src/test/notifications/fanout.test.ts` — 6 tests
+- `src/test/notifications/push.subscribe.test.ts` — 4 tests
+- `src/test/anomaly/persist.test.ts` — updated for insertedAlerts shape
+- `src/test/anomaly/cron.route.test.ts` — updated mocks (insertedAlerts, fanout mock)
+
+## Test Results
+115 tests passing across 20 test files. No regressions.
+
+## Key Design Decisions
+- `fanOutAlert` returns early for info severity (UI-only per spec)
+- `Promise.allSettled` used for both per-channel and per-facility isolation
+- facility_id always resolved server-side from user_profiles (CLAUDE.md Rule 1)
+- Push subscribe endpoint uses service-role client for the UPSERT to handle
+  the ON CONFLICT path without requiring the user to have UPDATE permission
+- VAPID key generation instructions are code comments only — never hardcoded

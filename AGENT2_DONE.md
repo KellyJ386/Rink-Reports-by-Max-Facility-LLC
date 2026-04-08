@@ -1,97 +1,91 @@
-# Phase B — Agent 2 (Pull Channel) Completion Marker
+# Phase D — Agent 2 (CSV/XLSX Exports) Completion Marker
 
 ## Branch
-`phase-b/pull-channel`
+`phase-d/csv-xlsx-exports`
 
 ## Worktree path
-`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-aa2b2db9`
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-ac005ad2`
 
 ## Task Status
 
-### Task 1 — tRPC pull procedures for all 6 modules
-**STATUS: COMPLETE**
-Commit: `47ba327`
-
-All 6 routers have a `pull` query:
-- `src/server/trpc/routers/daily-reports.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/ice-operations.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/refrigeration.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/air-quality.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/ice-depth.ts` — `submitted_at >= since`
-- `src/server/trpc/routers/incidents.ts` — `submitted_at >= since`
-
-Each uses `protectedProcedure`, filters by `ctx.facilityId` (Rule 1 + 8),
-and returns raw rows without reshaping. All tables exist in Supabase (no
-stubs needed).
-
-### Task 2 — usePullChannel hook
-**STATUS: COMPLETE**
-Commit: `84f653b`
+### Task 1 — exceljs + CSV/XLSX utility functions
+**STATUS: COMPLETE (prior run)**
+Commit: `4e0099a`
 
 Files:
-- `src/lib/offline/types.ts` — six cached-read interfaces
-  (`CachedDailyReport`, `CachedIceOperation`, `CachedRefrigerationReading`,
-  `CachedAirQualityReading`, `CachedIceDepthSession`, `CachedIncident`)
-- `src/hooks/usePullChannel.ts` — the hook itself
+- `src/server/exports/csv.ts` — `arrayToCsv` with UTF-8 BOM + comma/quote/newline escaping
+- `src/server/exports/xlsx.ts` — `createWorkbook`, `addWorksheet` (frozen header row, brand color, striped rows), `workbookToBase64`
 
-Key design decisions:
-- `trpc.useUtils()` is stored in a ref (`utilsRef`) so `pullAll` has an
-  empty dependency array — avoids infinite re-render loop from the
-  `useCallback` + `useEffect` dependency chain.
-- Six sequential module pulls each in their own try/catch.
-- AbortController wired to mount/unmount effect.
-- Online event debounced 2000ms via `setTimeout` ref.
-- db table casts through `unknown` since Agent 1's Dexie migration adds
-  the module tables in parallel; the runtime will error if tables are
-  missing, which is correct behaviour.
-
-### Task 3 — SyncContext + wire into layout
-**STATUS: COMPLETE**
-Commit: `8fcee83`
+### Task 2 — Per-module CSV/XLSX row formatters
+**STATUS: COMPLETE (prior run)**
+Commit: `5d21740`
 
 Files:
-- `src/context/SyncContext.tsx` — `SyncContext` + `useSyncContext()` helper
-- `src/components/layout/SyncProvider.tsx` — calls `usePullChannel()`,
-  provides values; `pendingCount` defaults to 0 (Agent 5 replaces)
-- `src/components/layout/index.ts` — `SyncProvider` exported
-- `src/app/(dashboard)/_components/DashboardShell.tsx` — children wrapped
-  in `<SyncProvider>`
+- `src/server/exports/formatters/dailyReport.ts` — fans out `answers` JSONB into one row per (tab × field), 6 headers
+- `src/server/exports/formatters/iceOperations.ts` — notes extraction from `answers` JSONB, 6 headers
+- `src/server/exports/formatters/refrigerationReadings.ts` — fans out `compressor_readings` array, one row per compressor, 12 headers; shift column marked TODO (not in migration)
+- `src/server/exports/formatters/airQualityReadings.ts` — splits `submitted_at` into Date + Time columns, 6 headers
+- `src/server/exports/formatters/incidents.ts` — falls back to `data` JSONB for type/description, 5 headers
 
-### Task 4 — Tests
-**STATUS: COMPLETE — all 4 tests pass (79 total, 0 failures)**
-Commit: `2fe6ce5`
+### Task 3 — tRPC CSV + XLSX procedures
+**STATUS: COMPLETE (this run)**
+Commit: `29aaf98`
 
-File: `src/test/hooks/usePullChannel.test.ts`
+Files:
+- `src/server/trpc/routers/exports.ts` — 10 procedures (Csv + Xlsx suffix for each of 5 modules):
+  `dailyReportCsv`, `dailyReportXlsx`, `iceOperationsCsv`, `iceOperationsXlsx`,
+  `refrigerationCsv`, `refrigerationXlsx`, `airQualityCsv`, `airQualityXlsx`,
+  `incidentsCsv`, `incidentsXlsx`.
+  Each returns `{ base64, filename, mimeType }`.
+- `src/server/trpc/routers/index.ts` — registered `exports: exportsRouter`
 
-Tests:
-1. Mount: all 6 pull.fetch called with since ~14 days ago (within 5s)
-2. Online event: after 2000ms debounce, pull fires again
-3. Upsert: pull results flow through adapters into db.<table>.bulkPut
-4. Failure isolation: one module throwing resets isPulling, sets error,
-   but the other 5 modules still complete their pulls
+### Task 4 — ExportMenu dropdown component
+**STATUS: COMPLETE (this run)**
+Commit: `0fe3a62`
 
-Mocking strategy:
-- `@/lib/offline/db` mocked with per-table `bulkPut` vi.fn() spies
-- `@/lib/trpc` mocked with `useUtils()` returning per-module `pull.fetch`
-  vi.fn() stubs
+File: `src/components/ui/ExportMenu.tsx`
+- `"use client"` component
+- Props: `{ onExportPdf?, onExportCsv, onExportXlsx, isExporting }`
+- "Export ▾" button toggles dropdown with PDF (optional), CSV, Excel options
+- Spinner + disabled state when `isExporting === true`
+- Click-outside close via `useRef` + `document.addEventListener("mousedown", …)`
+- Tailwind-only, brand tokens (#003B6F, #4DFF00, #F42A2A)
 
-SKIPPED:
-- Sentry dynamic import path is not tested — fire-and-forget side effect
-  that would require complex async module import mocking. Covered by
-  existing Phase A Sentry tRPC formatter tests.
+### Task 5 — Tests
+**STATUS: COMPLETE (this run)**
+Commit: `2a33ee0`
 
-## Commit SHAs (in order)
-1. `47ba327` — feat(pull): tRPC pull procedures for all 6 modules
-2. `84f653b` — feat(pull): usePullChannel hook — boot + online event pull
-3. `8fcee83` — feat(pull): wire usePullChannel into app layout via SyncProvider
-4. `2fe6ce5` — test: usePullChannel — mount, online event, upsert, failure isolation
-5. (this file) — chore: phase-b agent 2 completion marker
+Files:
+- `src/test/exports/csv.test.ts` — 8 tests:
+  BOM presence, comma escaping, quote doubling, null→empty (not "null"),
+  undefined→empty, numeric pass-through, newline escaping, structure check
+- `src/test/exports/formatters.test.ts` — 25 tests:
+  All 5 formatters covered: header counts, non-empty rows, correct column
+  values, null/missing field safety, refrigeration 3-compressor fan-out,
+  air quality date/time split, incident JSONB fallback
 
-## Notes for downstream agents
-- `useSyncContext()` is available throughout the dashboard tree.
-  Import from `@/context/SyncContext`.
-- `pendingCount` in SyncContext is hardcoded to 0. Agent 5 should
-  replace this with a `useLiveQuery` on `db.queue.where('syncedAt').equals(0).count()`.
-- The six module Dexie tables are NOT yet in `src/lib/offline/db.ts`.
-  Agent 1 owns that migration. The hook casts through `unknown` at runtime.
-- `triggerPull()` is stable and safe to call from anywhere in the tree.
+All 33 new tests pass. 167/168 pre-existing tests pass (1 pre-existing
+flaky test in `usePullChannel.test.ts` unrelated to this branch).
+
+## Commit SHAs (in order on this branch)
+
+1. `4e0099a` — feat(exports): exceljs + CSV/XLSX utility functions (prior run)
+2. `5d21740` — feat(exports): per-module CSV/XLSX row formatters (prior run)
+3. `29aaf98` — feat(exports): tRPC CSV + XLSX procedures for all 5 modules
+4. `0fe3a62` — feat(exports): ExportMenu dropdown component
+5. `2a33ee0` — test: CSV utilities + module formatters
+6. (this file) — chore: phase-d agent 2 completion marker
+
+## Final HEAD SHA
+`2a33ee0` (before this commit)
+
+## Merge Notes for Phase D integration
+
+- All tRPC procedures use `Csv` and `Xlsx` suffixes to avoid conflicts
+  with Phase D Agent 1's `*Pdf` procedures.
+- Both agents export from `src/server/trpc/routers/exports.ts`. The merge
+  should combine both procedure sets into one `exportsRouter` object.
+- The `exports: exportsRouter` line in `index.ts` appears in both branches;
+  whoever merges last should keep one registration line.
+- `ExportMenu` accepts `onExportPdf?` as optional so it works without PDF
+  support and can be wired to Agent 1's PDF mutations once merged.

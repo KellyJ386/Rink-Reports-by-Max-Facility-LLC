@@ -14,6 +14,125 @@ export type Database = {
   }
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          id: string
+          facility_id: string
+          alert_type: string
+          severity: string
+          target_identifier: string | null
+          title: string
+          description: string
+          metadata: Json
+          resolved_at: string | null
+          resolved_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          facility_id: string
+          alert_type: string
+          severity: string
+          target_identifier?: string | null
+          title: string
+          description: string
+          metadata?: Json
+          resolved_at?: string | null
+          resolved_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          facility_id?: string
+          alert_type?: string
+          severity?: string
+          target_identifier?: string | null
+          title?: string
+          description?: string
+          metadata?: Json
+          resolved_at?: string | null
+          resolved_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_notification_prefs: {
+        Row: {
+          id: string
+          user_id: string
+          facility_id: string
+          email_enabled: boolean
+          sms_enabled: boolean
+          push_enabled: boolean
+          phone_number: string | null
+          min_severity: string
+          alert_types: string[]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          facility_id: string
+          email_enabled?: boolean
+          sms_enabled?: boolean
+          push_enabled?: boolean
+          phone_number?: string | null
+          min_severity?: string
+          alert_types?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          facility_id?: string
+          email_enabled?: boolean
+          sms_enabled?: boolean
+          push_enabled?: boolean
+          phone_number?: string | null
+          min_severity?: string
+          alert_types?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          facility_id: string
+          subscription: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          facility_id: string
+          subscription: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          facility_id?: string
+          subscription?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
       air_quality_readings: {
         Row: {
           co_ppm: number
@@ -333,6 +452,7 @@ export type Database = {
           facility_id: string
           key: string
           module: string
+          retention_policies: Json | null
           updated_at: string
           value: Json
         }
@@ -341,6 +461,7 @@ export type Database = {
           facility_id: string
           key: string
           module: string
+          retention_policies?: Json | null
           updated_at?: string
           value: Json
         }
@@ -349,6 +470,7 @@ export type Database = {
           facility_id?: string
           key?: string
           module?: string
+          retention_policies?: Json | null
           updated_at?: string
           value?: Json
         }
@@ -1297,7 +1419,7 @@ export type Database = {
       }
     }
     Enums: {
-      user_role: "super_admin" | "admin" | "manager" | "staff"
+      user_role: "super_admin" | "admin" | "manager" | "staff" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1425,7 +1547,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      user_role: ["super_admin", "admin", "manager", "staff"],
+      user_role: ["super_admin", "admin", "manager", "staff", "viewer"],
     },
   },
 } as const

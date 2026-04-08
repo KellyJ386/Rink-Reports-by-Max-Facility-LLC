@@ -1,14 +1,31 @@
 /**
- * Cached-read interfaces for the Dexie pull cache.
+ * Offline cache type definitions.
  *
- * These interfaces mirror the server-side return types but are
- * named/shaped for local storage. Agent 1 (Phase B) owns the Dexie
- * table definitions that use these types. Agent 2 (Pull Channel) writes
- * them here so the usePullChannel hook has stable type targets.
+ * Two complementary sets of interfaces live in this file:
  *
- * NOTE: facility_id is intentionally absent — it is resolved server-side
- * from ctx.facilityId and never stored on the client. (CLAUDE.md Rule 1)
+ *   1. `Cached*` (snake_case, server-shaped): mirror the raw rows
+ *      returned by tRPC pull procedures. Consumed by `usePullChannel`
+ *      while it relays server payloads into Dexie.
+ *
+ *   2. `*Cache` (camelCase, client-shaped): the strongly-typed shapes
+ *      stored in the Dexie module read caches (`db.dailyReports`,
+ *      `db.iceOperations`, ...). Consumed by `useOfflineQuery`,
+ *      `seedDexie` test helpers, and any UI that reads cached data.
+ *
+ * Both sets exist because the wire format is server-canonical
+ * (snake_case mirroring Postgres) while the Dexie store is the
+ * UI-canonical shape (camelCase, sync-tracking fields).
+ *
+ * NOTE: facility_id / facilityId is intentionally absent from the
+ * `Cached*` types — it is resolved server-side from `ctx.facilityId`
+ * and never trusted from the client. The `*Cache` types DO include
+ * facilityId because it's the index used for client-side filtering
+ * across the local store. (CLAUDE.md Rule 1)
  */
+
+// ────────────────────────────────────────────────────────────────
+// Server-shaped pull cache rows (consumed by usePullChannel)
+// ────────────────────────────────────────────────────────────────
 
 export interface CachedDailyReport {
   id: string;
@@ -77,3 +94,119 @@ export interface CachedIncident {
   submitted_by: string;
   local_id: string | null;
 }
+
+// ────────────────────────────────────────────────────────────────
+// Client-shaped Dexie cache entries (consumed by useOfflineQuery)
+// ────────────────────────────────────────────────────────────────
+
+interface BaseCacheEntry {
+  serverId: string;
+  facilityId: string;
+  submittedAt: string | null;
+  syncedAt: string | null;
+}
+
+export interface DailyReportCache extends BaseCacheEntry {
+  reportDate: string;
+  tabName: string;
+  data: Record<string, unknown>;
+  localId?: string;
+}
+
+export interface IceOperationCache extends BaseCacheEntry {
+  operationDate: string;
+  operationType: string;
+  equipmentType: string;
+  operatorId: string;
+  notes: string | null;
+}
+
+export interface RefrigerationReadingCache extends BaseCacheEntry {
+  readingDate: string;
+  shiftLabel: string;
+  compressorIndex: number;
+  suctionPressure: number | null;
+  dischargePressure: number | null;
+  oilPressure: number | null;
+  amps: number | null;
+  oilTemp: number | null;
+  brineSupply: number | null;
+  brineReturn: number | null;
+  brineFlow: number | null;
+  iceSurfaceTemp: number | null;
+}
+
+export interface AirQualityReadingCache extends BaseCacheEntry {
+  readingDate: string;
+  co: number | null;
+  no2: number | null;
+  tier: 1 | 2 | 3 | 4;
+  escalationTriggered: boolean;
+}
+
+export interface IceDepthSessionCache extends BaseCacheEntry {
+  sessionDate: string;
+  templateId: string;
+  measurements: { pointIndex: number; depth: number }[];
+}
+
+export interface IncidentCache extends BaseCacheEntry {
+  incidentDate: string;
+  incidentType: "incident" | "accident";
+  location: string | null;
+  description: string;
+  bodyDiagramData: Record<string, unknown> | null;
+}
+
+// ────────────────────────────────────────────────────────────────
+// Alert — Phase C server-side anomaly detection
+// Rows are written by the Vercel cron anomaly scanner, read by
+// authenticated users within their facility scope.
+// ────────────────────────────────────────────────────────────────
+
+export type Alert = {
+  id: string;
+  facilityId: string;
+  alertType: string;
+  severity: "info" | "warning" | "critical";
+  targetIdentifier: string | null;
+  title: string;
+  description: string;
+  metadata: Record<string, unknown>;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  createdAt: string;
+};
+
+// ────────────────────────────────────────────────────────────────
+// NotificationPrefs — Phase C per-user notification preferences
+// ────────────────────────────────────────────────────────────────
+
+export type NotificationPrefs = {
+  id: string;
+  userId: string;
+  facilityId: string;
+  emailEnabled: boolean;
+  smsEnabled: boolean;
+  pushEnabled: boolean;
+  phoneNumber: string | null;
+  minSeverity: "info" | "warning" | "critical";
+  alertTypes: string[];
+};
+
+// ────────────────────────────────────────────────────────────────
+// RetentionPolicies — Phase D per-facility archive configuration
+// Stored in facility_config.retention_policies (JSONB).
+// NULL = keep forever (compliance records may never be deleted).
+// Admin can only set values >= 365; incidents and air_quality_readings
+// are always null (compliance — never delete).
+// ────────────────────────────────────────────────────────────────
+
+export type RetentionPolicies = {
+  dailyReports: number;
+  iceOperations: number;
+  refrigerationReadings: number;
+  airQualityReadings: null; // compliance — never delete
+  iceDepthSessions: number;
+  incidents: null; // compliance — never delete
+};

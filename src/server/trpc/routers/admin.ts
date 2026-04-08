@@ -64,7 +64,7 @@ const SetModuleEnabledInput = z.object({
 
 // 'super_admin' was added in migration 014. The platform treats it
 // as strictly more privileged than 'admin'.
-const UserRoleEnum = z.enum(["super_admin", "admin", "manager", "staff"]);
+const UserRoleEnum = z.enum(["super_admin", "admin", "manager", "staff", "viewer"]);
 
 const UpdateUserRoleInput = z.object({
   user_id: z.string().uuid(),
@@ -475,4 +475,70 @@ export const adminRouter = router({
    * Control Center spec section 10.
    */
   branding: brandingAdminRouter,
+
+  // -------------------------------------------------------------------
+  // Phase D — retention policy
+  // -------------------------------------------------------------------
+
+  /**
+   * Return the per-module retention policy for the caller's facility.
+   * Defaults to sensible values if the facility has no row or the
+   * retention_policies column is NULL.
+   *
+   * incidents and airQualityReadings are always null (compliance —
+   * never deleted regardless of config).
+   */
+  getRetentionPolicies: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.facilityId) throw new TRPCError({ code: "FORBIDDEN" });
+    const { data } = await ctx.supabase
+      .from("facility_config")
+      .select("retention_policies")
+      .eq("facility_id", ctx.facilityId)
+      .maybeSingle();
+    return (data?.retention_policies ?? {
+      dailyReports: 365,
+      iceOperations: 365,
+      refrigerationReadings: 730,
+      airQualityReadings: null,
+      iceDepthSessions: 365,
+      incidents: null,
+    });
+  }),
+
+  /**
+   * Update the per-module retention policy for the caller's facility.
+   * Admin only. Rules:
+   *   - Each numeric field must be >= 365 (admin can only increase).
+   *   - incidents and airQualityReadings must always be null —
+   *     compliance records are never deleted.
+   */
+  updateRetentionPolicies: protectedProcedure
+    .input(
+      z.object({
+        dailyReports: z.number().int().min(365),
+        iceOperations: z.number().int().min(365),
+        refrigerationReadings: z.number().int().min(365),
+        iceDepthSessions: z.number().int().min(365),
+        // Compliance — admin cannot change these
+        airQualityReadings: z.null(),
+        incidents: z.null(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId) throw new TRPCError({ code: "FORBIDDEN" });
+      await requireAdmin(ctx);
+      // retention_policies is a JSONB column on facility_config rows.
+      // We update all config rows for this facility in one call — the
+      // column value is the same regardless of (module, key).
+      const { error } = await ctx.supabase
+        .from("facility_config")
+        .update({ retention_policies: input as unknown as import("@/lib/database.types").Json })
+        .eq("facility_id", ctx.facilityId);
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      return { ok: true as const };
+    }),
 });

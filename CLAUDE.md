@@ -106,16 +106,45 @@ src/
     useModuleConfig.ts   # reads facility_config — used everywhere
 
 ## Phase Gates
-### Phase A — Reality Reset & Hardening (current)
-Exit gates that MUST pass before any new module work resumes:
-- CI green: typecheck + lint + test all run on every PR
-- Test coverage: all module Zod schemas, `/api/sync` route,
-  tRPC auth/facility canaries, and `useModuleConfig` are
-  covered by tests
-- Layout components exist and render: `Header`, `Sidebar`,
-  `MobileNav`, `OfflineBanner`, `SyncStatus`
-- Sentry wired into the tRPC error formatter, `proxy.ts`,
-  and `/api/sync`
+### Phase A — Reality Reset & Hardening (complete)
+- CI green: typecheck + lint + test on every PR
+- Test coverage: schemas, /api/sync, tRPC auth canary, useModuleConfig
+- Layout components: Header, Sidebar, MobileNav, OfflineBanner, SyncStatus
+- Sentry wired into tRPC, proxy.ts, /api/sync
+
+### Phase B — Truly Offline-First (complete)
+- Dexie schema extended with 6 module read caches (version 2)
+- tRPC `pull` procedures for all 6 modules; `usePullChannel` boot + online debounce
+- `useOfflineQuery` hook (Dexie-first, network upgrade, isStale, refetch)
+- PWA: `@ducanh2912/next-pwa`, manifest, SVG icons, InstallPrompt, /offline page
+- Sync UX: live `useSyncStatus`, `rr:sync-ack` event, toast on drain, responsive badge
+- /api/sync refactored to thin dispatcher + per-table handler registry
+
+### Phase C — Insight Layer (complete)
+- analyticsRouter + 5 trend procedures (air quality, refrigeration, ice depth, incidents, daily report completion)
+- LineChart, HeatmapGrid, BarChart, CompletionRing components (recharts)
+- /(dashboard)/insights page with 7/30/90-day toggle
+- alerts table + RLS + 4 detectors (refrigeration drift, missed reports, AQ escalation, ice depth thin spots)
+- /api/cron/anomaly-scan hourly Vercel cron
+- alertsRouter (list + resolve)
+- Notifications: email (Resend), SMS (Twilio), web push (web-push) + fan-out service wired into cron
+- user_notification_prefs + push_subscriptions tables + admin UI card
+- viewer role: route group, role guard utility, viewerProcedure middleware, proxy redirect
+
+### Phase D — Compliance & Exports (complete)
+- Branded PDF exports per module (jsPDF) with shared header/footer/signature utilities
+- CSV + XLSX exports per module (exceljs)
+- ExportMenu dropdown component
+- Regulatory report packs: OSHA 300/300A injury log, EPA RMP refrigerant log, USA Hockey rink safety, monthly board pack
+- Operational Reports page at /(dashboard)/reports
+- Retention policies per module in facility_config (min 365 days, compliance fields locked)
+- Nightly retention sweep cron at /api/cron/retention-sweep (2am UTC, soft delete + 30-day grace)
+
+### Phase E — Sensors & Integrations (next)
+- Refrigeration controller ingest (Modbus/BACnet) via on-site bridge
+- Ammonia / CO / NO₂ sensor auto-ingest
+- Weather station pull (NOAA / OpenWeather)
+- Scheduling import adapters (ICS, Maxgalaxy, Active Network)
 
 ## Environment Variables Needed
 NEXT_PUBLIC_SUPABASE_URL
@@ -124,10 +153,68 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_TRPC_URL
 
 ## Current Phase
-Phase A — Reality Reset & Hardening. No new module UI until
-every Phase A exit gate above is green.
+Phase D complete; Phase E ready. The platform now ships
+branded per-module PDF/CSV/XLSX exports, four regulatory
+report packs (OSHA 300/300A, EPA RMP, USA Hockey rink safety,
+monthly board pack), a shared ExportMenu component, and a
+nightly retention sweep cron with per-facility soft-delete
+policies that permanently exclude incidents and air quality
+escalations from deletion. Next work belongs in Phase E
+(Sensors & Integrations).
 
 ## CHANGELOG
+
+### 2026-04-08 — Phase D complete (Compliance & Exports)
+4 specialist agents merged. Agent 1 shipped a jsPDF utility
+module (header, footer, signature, section-title, page-overflow
+helpers) plus 5 per-module PDF generators (daily reports, ice
+operations, refrigeration, air quality, incidents), a tRPC
+exports router with 5 `*Pdf` mutations, and a `usePdfExport`
+client hook wired to daily-reports and refrigeration history.
+Agent 2 shipped native CSV + exceljs XLSX utilities, 5
+per-module row formatters, 10 `*Csv`/`*Xlsx` mutations, and an
+ExportMenu dropdown. Agent 3 shipped 4 regulatory report pack
+generators (OSHA 300/300A, EPA RMP refrigerant log, USA Hockey
+rink safety, monthly board pack with ASCII bar approximation),
+4 corresponding tRPC mutations, and a Report Packs page at
+/(dashboard)/reports. Agent 4 added `retention_policies` JSONB
+to `facility_config` (default 365–1825 days, compliance fields
+locked to null), `archived_at` columns on 4 module tables (not
+incidents or air_quality_readings), a nightly
+/api/cron/retention-sweep with 30-day grace period before hard
+delete, and an admin UI card. Both Phase D resume cycles were
+needed after background agent processes were terminated across
+session boundaries. Tests: 245 passing across 32 files;
+typecheck clean. See PHASE_D_COMPLETE.md for details.
+
+### 2026-04-07 — Phase C complete (Insight Layer)
+4 specialist agents merged. analyticsRouter shipped 5 trend
+procedures used by an Operational Insights page (recharts:
+LineChart, HeatmapGrid, BarChart, CompletionRing). Server-side
+anomaly detection: 4 detectors (refrigeration drift, missed
+daily reports, air quality escalation, ice depth thin spots),
+deduped persistence into a new `alerts` table, hourly Vercel
+cron at /api/cron/anomaly-scan, alertsRouter (list + resolve).
+Notifications: Resend email, Twilio SMS, web-push + VAPID; new
+`user_notification_prefs` and `push_subscriptions` tables; fan-out
+wired into the cron with Promise.allSettled isolation. Viewer
+role: route group at /(viewer), role guard utility, viewerProcedure
+middleware, proxy redirect, role added to TRPCContext, viewer
+option in admin user management. Tests: 158 passing across 24
+files; typecheck clean. See PHASE_C_COMPLETE.md for details.
+
+### 2026-04-07 — Phase B complete (Truly Offline-First)
+6 specialist agents merged. Dexie schema extended to version 2
+with 6 module read caches. tRPC `pull` procedures + 14-day
+`usePullChannel` (boot + debounced online event). `useOfflineQuery`
+hook is the new data-fetching primitive: Dexie-first, network
+upgrade, isStale, refetch, error isolation. PWA shipped via
+`@ducanh2912/next-pwa` + manifest + InstallPrompt + /offline page.
+Sync UX: live `useSyncStatus`, `rr:sync-ack` event from sync engine,
+toast on drain, responsive header badge. /api/sync refactored from
+~430-line switch into a 55-line dispatcher + per-table handler
+registry. Tests: 90 passing across 15 files; typecheck clean.
+See PHASE_B_COMPLETE.md for details.
 
 ### 2026-04-07 — Phase A migration
 Phases 0 through 5 scaffolding has landed (Supabase schema,

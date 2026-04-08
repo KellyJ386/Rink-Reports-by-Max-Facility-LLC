@@ -1,24 +1,51 @@
-# Agent 1 (Docs & Config) — Phase A Completion
+# Phase D — Agent 1 Complete
 
-Branch: `phase-a/docs-config`
-Worktree: `/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-aa7dc4c0`
+## Branch
+`phase-d/pdf-exports`
 
-## Task status
+## Worktree
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-a57082f7`
 
-| Task | Description | Status | Commit SHA |
-|---|---|---|---|
-| 1 | CLAUDE.md update — set Phase A current, add CHANGELOG, rewrite Phase Gates | DONE | `d92dd1ace7345de79570ea36ccce3535288b5e5d` |
-| 2 | README replacement — real getting-started + architecture overview | DONE | `e9b89d3ca8d521880ff3f500f2b8b5bd0a2eae25` |
-| 3 | npm scripts + GitHub Actions CI workflow | DONE | `f38cc5d62900ea5996a7476dc4bc6b8f9e5b0301` |
-| 12 | Dependency audit — fix `lucide-react`, flag others in `DEPENDENCY_AUDIT.md` | DONE | `c0dfa56fda2543d1aef4ee58553d09e366ecd9b1` |
+## Task Statuses
+
+| Task | Status | SHA |
+|------|--------|-----|
+| Task 1 — Shared PDF utilities (`src/server/pdf/utils.ts`) | DONE (pre-existing) | `f6bac6b` |
+| Task 2 — PDF generators for all 5 modules | DONE | `b106fd3` |
+| Task 3 — tRPC export router + index registration | DONE | `aaaf7ce` |
+| Task 4 — `usePdfExport` hook + Export PDF buttons (daily-reports + refrigeration) | DONE | `4c97642` |
+| Task 5 — Tests: `pdf/utils.test.ts` + `pdf/exports.router.test.ts` | DONE | `6a4787b` |
+
+## Final SHA
+`6a4787b`
+
+## Files Created / Modified
+
+### Created
+- `src/server/pdf/generators/dailyReport.ts`
+- `src/server/pdf/generators/iceOperations.ts`
+- `src/server/pdf/generators/refrigeration.ts`
+- `src/server/pdf/generators/airQuality.ts`
+- `src/server/pdf/generators/incidents.ts`
+- `src/server/trpc/routers/exports.ts`
+- `src/hooks/usePdfExport.ts`
+- `src/test/pdf/utils.test.ts`
+- `src/test/pdf/exports.router.test.ts`
+
+### Modified
+- `src/server/trpc/routers/index.ts` — registered `exports: exportsRouter`
+- `src/modules/daily-reports/components/RecentSubmissions.tsx` — Export PDF button
+- `src/modules/refrigeration/components/RecentRefrigerationReadings.tsx` — Export PDF button
+
+## Test Results
+180 tests passing across 26 files (up from 158).
+TypeScript: clean (0 errors).
 
 ## Notes
-
-- Tasks 1–3 had already been committed on this branch from a prior run; the
-  current run verified the file contents match the spec and only added the
-  Task 12 commit.
-- Task 12: `lucide-react` was changed from `^1.7.0` (which does not exist)
-  to `^0.460.0`. Several other suspicious pins (`jspdf`, `stripe`,
-  `@supabase/ssr`, `next`, `react`, `zod`, `@trpc/*`) are flagged for human
-  verification in `DEPENDENCY_AUDIT.md` rather than changed blindly.
-- No push was performed. No PR was opened.
+- `facility_id` is always taken from `ctx.facilityId` per CLAUDE.md Rule 1
+- All procedures are `protectedProcedure`
+- The `dailyReportPdf` procedure joins `daily_report_checklists` for tab names
+  and groups answers by checklist tab
+- Refrigeration procedure fetches compressor names for lookup and uses
+  the fixed `REFRIGERATION_FIELDS` catalog (no hardcoded strings)
+- Generator mocks in tests use `vi.mock` so no actual PDF is rendered in CI

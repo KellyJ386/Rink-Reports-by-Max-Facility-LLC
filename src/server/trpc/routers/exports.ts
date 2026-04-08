@@ -1,0 +1,1321 @@
+import "server-only";
+
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+
+import { router, protectedProcedure } from "@/server/trpc/trpc";
+import { arrayToCsv } from "@/server/exports/csv";
+import {
+  createWorkbook,
+  addWorksheet,
+  workbookToBase64,
+} from "@/server/exports/xlsx";
+import { formatDailyReportRows } from "@/server/exports/formatters/dailyReport";
+import { formatIceOperationRows } from "@/server/exports/formatters/iceOperations";
+import { formatRefrigerationRows } from "@/server/exports/formatters/refrigerationReadings";
+import { formatAirQualityRows } from "@/server/exports/formatters/airQualityReadings";
+import { formatIncidentRows } from "@/server/exports/formatters/incidents";
+import { generateDailyReportPdf } from "@/server/pdf/generators/dailyReport";
+import { generateIceOperationsPdf } from "@/server/pdf/generators/iceOperations";
+import { generateRefrigerationPdf } from "@/server/pdf/generators/refrigeration";
+import { generateAirQualityPdf } from "@/server/pdf/generators/airQuality";
+import { generateIncidentsPdf } from "@/server/pdf/generators/incidents";
+import {
+  REFRIGERATION_FIELDS,
+  toCompressorReadings,
+} from "@/modules/refrigeration/schema";
+import { ReportInput } from "@/modules/incidents/schema";
+import type {
+  IncidentReportEntry,
+  BodyMarkerEntry,
+} from "@/server/pdf/generators/incidents";
+
+import { generateOshaLog, type OshaIncident } from "@/server/pdf/packs/oshaInjuryLog";
+import { generateEpaRmpLog } from "@/server/pdf/packs/epaRmpLog";
+import {
+  generateUsaHockeySafety,
+  type AirQualityReadingData,
+  type IncidentRowData,
+  type IceDepthSessionData,
+  type DailyReportCompletionData,
+} from "@/server/pdf/packs/usaHockeyRinkSafety";
+import {
+  generateMonthlyBoardPack,
+  type AirQualitySummary,
+  type RefrigerationSummary,
+  type IncidentSummary,
+  type CompletionRate,
+  type ActiveAlert,
+} from "@/server/pdf/packs/monthlyBoardPack";
+
+function yearRange(year: number): { from: string; to: string } {
+  return {
+    from: `${year}-01-01T00:00:00.000Z`,
+    to: `${year}-12-31T23:59:59.999Z`,
+  };
+}
+
+function monthRange(yyyyMm: string): { from: string; to: string } {
+  const [year, month] = yyyyMm.split("-").map(Number) as [number, number];
+  const from = new Date(year, month - 1, 1).toISOString();
+  const toDate = new Date(year, month, 1);
+  toDate.setMilliseconds(-1);
+  return { from, to: toDate.toISOString() };
+}
+const dateRangeInput = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+});
+
+const XLSX_MIME =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+function facilityGuard(facilityId: string | null): asserts facilityId is string {
+  if (!facilityId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "No facility assigned" });
+  }
+}
+
+export const exportsRouter = router({
+  // ─── Daily Reports ───────────────────────────────────────────────────────
+
+  dailyReportCsv: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("daily_reports")
+        .select("*, checklist:checklist_id(name)")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.startDate)
+        .lte("submitted_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatDailyReportRows(
+        (data ?? []) as Parameters<typeof formatDailyReportRows>[0],
+      );
+      const csv = arrayToCsv(headers, rows);
+
+      return {
+        base64: Buffer.from(csv, "utf-8").toString("base64"),
+        filename: `daily-reports-${input.startDate}-${input.endDate}.csv`,
+        mimeType: "text/csv",
+      };
+    }),
+
+  dailyReportXlsx: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("daily_reports")
+        .select("*, checklist:checklist_id(name)")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.startDate)
+        .lte("submitted_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatDailyReportRows(
+        (data ?? []) as Parameters<typeof formatDailyReportRows>[0],
+      );
+      const wb = createWorkbook();
+      addWorksheet(wb, "Daily Reports", headers, rows);
+      const base64 = await workbookToBase64(wb);
+
+      return {
+        base64,
+        filename: `daily-reports-${input.startDate}-${input.endDate}.xlsx`,
+        mimeType: XLSX_MIME,
+      };
+    }),
+
+  // ─── Ice Operations ───────────────────────────────────────────────────────
+
+  iceOperationsCsv: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("ice_operations")
+        .select(
+          "*, operation_type:operation_type_id(name), equipment:equipment_id(name)",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.startDate)
+        .lte("submitted_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatIceOperationRows(
+        (data ?? []) as Parameters<typeof formatIceOperationRows>[0],
+      );
+      const csv = arrayToCsv(headers, rows);
+
+      return {
+        base64: Buffer.from(csv, "utf-8").toString("base64"),
+        filename: `ice-operations-${input.startDate}-${input.endDate}.csv`,
+        mimeType: "text/csv",
+      };
+    }),
+
+  iceOperationsXlsx: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("ice_operations")
+        .select(
+          "*, operation_type:operation_type_id(name), equipment:equipment_id(name)",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.startDate)
+        .lte("submitted_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatIceOperationRows(
+        (data ?? []) as Parameters<typeof formatIceOperationRows>[0],
+      );
+      const wb = createWorkbook();
+      addWorksheet(wb, "Ice Operations", headers, rows);
+      const base64 = await workbookToBase64(wb);
+
+      return {
+        base64,
+        filename: `ice-operations-${input.startDate}-${input.endDate}.xlsx`,
+        mimeType: XLSX_MIME,
+      };
+    }),
+
+  // ─── Refrigeration ───────────────────────────────────────────────────────
+
+  refrigerationCsv: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("refrigeration_readings")
+        .select("*")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.startDate)
+        .lte("submitted_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatRefrigerationRows(
+        (data ?? []) as Parameters<typeof formatRefrigerationRows>[0],
+      );
+      const csv = arrayToCsv(headers, rows);
+
+      return {
+        base64: Buffer.from(csv, "utf-8").toString("base64"),
+        filename: `refrigeration-${input.startDate}-${input.endDate}.csv`,
+        mimeType: "text/csv",
+      };
+    }),
+
+  refrigerationXlsx: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("refrigeration_readings")
+        .select("*")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.startDate)
+        .lte("submitted_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatRefrigerationRows(
+        (data ?? []) as Parameters<typeof formatRefrigerationRows>[0],
+      );
+      const wb = createWorkbook();
+      addWorksheet(wb, "Refrigeration", headers, rows);
+      const base64 = await workbookToBase64(wb);
+
+      return {
+        base64,
+        filename: `refrigeration-${input.startDate}-${input.endDate}.xlsx`,
+        mimeType: XLSX_MIME,
+      };
+    }),
+
+  // ─── Air Quality ─────────────────────────────────────────────────────────
+
+  airQualityCsv: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("air_quality_readings")
+        .select("*")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.startDate)
+        .lte("submitted_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatAirQualityRows(
+        (data ?? []) as Parameters<typeof formatAirQualityRows>[0],
+      );
+      const csv = arrayToCsv(headers, rows);
+
+      return {
+        base64: Buffer.from(csv, "utf-8").toString("base64"),
+        filename: `air-quality-${input.startDate}-${input.endDate}.csv`,
+        mimeType: "text/csv",
+      };
+    }),
+
+  airQualityXlsx: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("air_quality_readings")
+        .select("*")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", input.startDate)
+        .lte("submitted_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatAirQualityRows(
+        (data ?? []) as Parameters<typeof formatAirQualityRows>[0],
+      );
+      const wb = createWorkbook();
+      addWorksheet(wb, "Air Quality", headers, rows);
+      const base64 = await workbookToBase64(wb);
+
+      return {
+        base64,
+        filename: `air-quality-${input.startDate}-${input.endDate}.xlsx`,
+        mimeType: XLSX_MIME,
+      };
+    }),
+
+  // ─── Incidents ────────────────────────────────────────────────────────────
+
+  incidentsCsv: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("incidents")
+        .select("*")
+        .eq("facility_id", ctx.facilityId)
+        .gte("occurred_at", input.startDate)
+        .lte("occurred_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatIncidentRows(
+        (data ?? []) as Parameters<typeof formatIncidentRows>[0],
+      );
+      const csv = arrayToCsv(headers, rows);
+
+      return {
+        base64: Buffer.from(csv, "utf-8").toString("base64"),
+        filename: `incidents-${input.startDate}-${input.endDate}.csv`,
+        mimeType: "text/csv",
+      };
+    }),
+
+  incidentsXlsx: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { data, error } = await ctx.supabase
+        .from("incidents")
+        .select("*")
+        .eq("facility_id", ctx.facilityId)
+        .gte("occurred_at", input.startDate)
+        .lte("occurred_at", input.endDate);
+
+      if (error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+
+      const { headers, rows } = formatIncidentRows(
+        (data ?? []) as Parameters<typeof formatIncidentRows>[0],
+      );
+      const wb = createWorkbook();
+      addWorksheet(wb, "Incidents", headers, rows);
+      const base64 = await workbookToBase64(wb);
+
+      return {
+        base64,
+        filename: `incidents-${input.startDate}-${input.endDate}.xlsx`,
+        mimeType: XLSX_MIME,
+      };
+    }),
+  // -----------------------------------------------------------------------
+  // Daily Report PDF
+  // -----------------------------------------------------------------------
+  dailyReportPdf: protectedProcedure
+    .input(z.object({ reportDate: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      facilityGuard(ctx.facilityId);
+
+      // Fetch facility name
+      const { data: facility } = await ctx.supabase
+        .from("facilities")
+        .select("name")
+        .eq("id", ctx.facilityId)
+        .maybeSingle();
+
+      // Fetch all daily_reports rows for that date, joined with checklist names
+      const { data: reports, error } = await ctx.supabase
+        .from("daily_reports")
+        .select(
+          "id, checklist_id, submitted_at, submitted_by, answers, daily_report_checklists(name)",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", `${input.reportDate}T00:00:00.000Z`)
+        .lte("submitted_at", `${input.reportDate}T23:59:59.999Z`)
+        .order("submitted_at", { ascending: true });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      // Group by checklist into tabs
+      const tabMap = new Map<
+        string,
+        { name: string; fields: Array<{ label: string; value: string }> }
+      >();
+
+      for (const row of reports ?? []) {
+        const checklistName =
+          (
+            row.daily_report_checklists as
+              | { name: string }
+              | null
+          )?.name ?? row.checklist_id;
+
+        if (!tabMap.has(row.checklist_id)) {
+          tabMap.set(row.checklist_id, { name: checklistName, fields: [] });
+        }
+
+        const tab = tabMap.get(row.checklist_id)!;
+        const answers =
+          row.answers &&
+          typeof row.answers === "object" &&
+          !Array.isArray(row.answers)
+            ? (row.answers as Record<string, unknown>)
+            : {};
+
+        for (const [key, val] of Object.entries(answers)) {
+          tab.fields.push({
+            label: key,
+            value: val !== null && val !== undefined ? String(val) : "—",
+          });
+        }
+      }
+
+      const tabs = Array.from(tabMap.values());
+
+      const base64 = await generateDailyReportPdf({
+        facilityName: facility?.name ?? "",
+        reportDate: input.reportDate,
+        tabs,
+        submittedBy: "",
+      });
+
+      return {
+        base64,
+        filename: `daily-report-${ctx.facilityId}-${input.reportDate}.pdf`,
+      };
+    }),
+
+  // -----------------------------------------------------------------------
+  // Ice Operations PDF
+  // -----------------------------------------------------------------------
+  iceOperationsPdf: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      facilityGuard(ctx.facilityId);
+
+      const { data: facility } = await ctx.supabase
+        .from("facilities")
+        .select("name")
+        .eq("id", ctx.facilityId)
+        .maybeSingle();
+
+      // Fetch operations with joined type name and equipment name
+      const { data: ops, error } = await ctx.supabase
+        .from("ice_operations")
+        .select(
+          "id, submitted_at, submitted_by, answers, ice_operation_types(name), ice_equipment(name)",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", `${input.startDate}T00:00:00.000Z`)
+        .lte("submitted_at", `${input.endDate}T23:59:59.999Z`)
+        .order("submitted_at", { ascending: true });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      const operations = (ops ?? []).map((row) => {
+        const answers =
+          row.answers &&
+          typeof row.answers === "object" &&
+          !Array.isArray(row.answers)
+            ? (row.answers as Record<string, unknown>)
+            : {};
+        const notes = Object.values(answers)
+          .filter((v) => v !== null && v !== undefined)
+          .map(String)
+          .join("; ");
+
+        return {
+          date: new Date(row.submitted_at).toLocaleString(),
+          operation:
+            (row.ice_operation_types as { name: string } | null)?.name ?? "—",
+          equipment:
+            (row.ice_equipment as { name: string } | null)?.name ?? "—",
+          operator: row.submitted_by,
+          notes,
+        };
+      });
+
+      const dateRange = `${input.startDate} – ${input.endDate}`;
+      const base64 = await generateIceOperationsPdf({
+        facilityName: facility?.name ?? "",
+        dateRange,
+        operations,
+      });
+
+      return {
+        base64,
+        filename: `ice-operations-${ctx.facilityId}-${input.startDate}-${input.endDate}.pdf`,
+      };
+    }),
+
+  // -----------------------------------------------------------------------
+  // Refrigeration PDF
+  // -----------------------------------------------------------------------
+  refrigerationPdf: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      facilityGuard(ctx.facilityId);
+
+      const { data: facility } = await ctx.supabase
+        .from("facilities")
+        .select("name")
+        .eq("id", ctx.facilityId)
+        .maybeSingle();
+
+      // Fetch compressor names for lookup
+      const { data: compressors } = await ctx.supabase
+        .from("refrigeration_compressors")
+        .select("id, name")
+        .eq("facility_id", ctx.facilityId)
+        .eq("active", true)
+        .order("position", { ascending: true });
+
+      const compressorNameById = new Map(
+        (compressors ?? []).map((c) => [c.id, c.name]),
+      );
+
+      // Fetch readings
+      const { data: rows, error } = await ctx.supabase
+        .from("refrigeration_readings")
+        .select(
+          "id, submitted_at, submitted_by, brine_supply, brine_return, brine_flow, ice_surface_temp, condenser_temp, compressor_readings",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", `${input.startDate}T00:00:00.000Z`)
+        .lte("submitted_at", `${input.endDate}T23:59:59.999Z`)
+        .order("submitted_at", { ascending: true });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      const facilityFieldDefs = REFRIGERATION_FIELDS.filter(
+        (f) => f.scope === "facility",
+      );
+      const compressorFieldDefs = REFRIGERATION_FIELDS.filter(
+        (f) => f.scope === "compressor",
+      );
+
+      const readings = (rows ?? []).map((row) => {
+        const crRows = toCompressorReadings(row.compressor_readings);
+        return {
+          submittedAt: new Date(row.submitted_at).toLocaleString(),
+          submittedBy: row.submitted_by,
+          facilityFields: facilityFieldDefs.map((f) => ({
+            label: f.label,
+            unit: f.unit,
+            value:
+              (row as unknown as Record<string, number | null>)[f.key] ?? null,
+          })),
+          compressorReadings: crRows.map((cr) => ({
+            compressorName:
+              compressorNameById.get(cr.compressor_id) ?? cr.compressor_id,
+            fields: compressorFieldDefs.map((f) => ({
+              label: f.label,
+              unit: f.unit,
+              value:
+                (cr as unknown as Record<string, number | null>)[f.key] ?? null,
+            })),
+          })),
+        };
+      });
+
+      const dateRange = `${input.startDate} – ${input.endDate}`;
+      const base64 = await generateRefrigerationPdf({
+        facilityName: facility?.name ?? "",
+        dateRange,
+        readings,
+        normalRanges: {},
+      });
+
+      return {
+        base64,
+        filename: `refrigeration-${ctx.facilityId}-${input.startDate}-${input.endDate}.pdf`,
+      };
+    }),
+
+  // -----------------------------------------------------------------------
+  // Air Quality PDF
+  // -----------------------------------------------------------------------
+  airQualityPdf: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      facilityGuard(ctx.facilityId);
+
+      const { data: facility } = await ctx.supabase
+        .from("facilities")
+        .select("name")
+        .eq("id", ctx.facilityId)
+        .maybeSingle();
+
+      const { data: rows, error } = await ctx.supabase
+        .from("air_quality_readings")
+        .select("id, submitted_at, co_ppm, no2_ppm, tier, notes")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", `${input.startDate}T00:00:00.000Z`)
+        .lte("submitted_at", `${input.endDate}T23:59:59.999Z`)
+        .order("submitted_at", { ascending: true });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      const readings = (rows ?? []).map((row) => ({
+        timestamp: new Date(row.submitted_at).toLocaleString(),
+        co: Number(row.co_ppm),
+        no2: Number(row.no2_ppm),
+        tier: row.tier as "normal" | "caution" | "action" | "evacuate",
+        actionTaken: row.notes ?? "",
+      }));
+
+      const dateRange = `${input.startDate} – ${input.endDate}`;
+      const base64 = await generateAirQualityPdf({
+        facilityName: facility?.name ?? "",
+        dateRange,
+        readings,
+      });
+
+      return {
+        base64,
+        filename: `air-quality-${ctx.facilityId}-${input.startDate}-${input.endDate}.pdf`,
+      };
+    }),
+
+  // -----------------------------------------------------------------------
+  // Incidents PDF
+  // -----------------------------------------------------------------------
+  incidentsPdf: protectedProcedure
+    .input(dateRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      facilityGuard(ctx.facilityId);
+
+      const { data: facility } = await ctx.supabase
+        .from("facilities")
+        .select("name")
+        .eq("id", ctx.facilityId)
+        .maybeSingle();
+
+      const { data: rows, error } = await ctx.supabase
+        .from("incidents")
+        .select(
+          "id, kind, occurred_at, location, incident_type, description, data, submitted_by",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("occurred_at", `${input.startDate}T00:00:00.000Z`)
+        .lte("occurred_at", `${input.endDate}T23:59:59.999Z`)
+        .order("occurred_at", { ascending: true });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      const incidents: IncidentReportEntry[] = (rows ?? []).map((row) => {
+        const parsed = ReportInput.safeParse(row.data);
+        const base: IncidentReportEntry = {
+          kind: row.kind === "accident" ? "accident" : "incident",
+          occurredAt: new Date(row.occurred_at).toLocaleString(),
+          reportedBy: row.submitted_by,
+          location: row.location,
+          incidentType: row.incident_type,
+          description: row.description,
+          followUpRequired: false,
+        };
+
+        if (parsed.success) {
+          const d = parsed.data;
+          base.personsInvolved = d.persons_involved;
+          base.witnesses = d.witnesses;
+          base.immediateAction = d.immediate_action;
+          base.followUpRequired = d.follow_up_required;
+          base.followUpNotes = d.follow_up_notes;
+
+          if (d.kind === "accident") {
+            base.injuredName = d.injured_name;
+            base.injuredType = d.injured_type;
+            base.injuredAge = d.injured_age;
+            base.natureOfInjury = d.nature_of_injury;
+            base.bodyMarkers = d.body_markers.map(
+              (m): BodyMarkerEntry => ({
+                view: m.view,
+                label: m.label,
+              }),
+            );
+            base.firstAidAdministered = d.first_aid_administered;
+            base.firstAidDetails = d.first_aid_details;
+            base.emsCalled = d.ems_called;
+            base.emsDetails = d.ems_details;
+            base.transportedToHospital = d.transported_to_hospital;
+            base.hospitalName = d.hospital_name;
+          }
+        }
+
+        return base;
+      });
+
+      const dateRange = `${input.startDate} – ${input.endDate}`;
+      const base64 = await generateIncidentsPdf({
+        facilityName: facility?.name ?? "",
+        dateRange,
+        incidents,
+      });
+
+      return {
+        base64,
+        filename: `incidents-${ctx.facilityId}-${input.startDate}-${input.endDate}.pdf`,
+      };
+    }),
+  // --------------------------------------------------------------------------
+  // OSHA 300/300A Injury Log
+  // --------------------------------------------------------------------------
+  oshaLog: protectedProcedure
+    .input(
+      z.object({
+        year: z.number().int().min(2020).max(2030),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // ctx.facilityId is guaranteed non-null by protectedProcedure middleware
+      // (see src/server/trpc/trpc.ts). Never read from input. CLAUDE.md Rule 1.
+      if (!ctx.facilityId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      // Fetch facility info (name and address for OSHA 300A establishment section)
+      const { data: facility } = await ctx.supabase
+        .from("facilities")
+        .select("name, address_line1, city, state, postal_code")
+        .eq("id", ctx.facilityId)
+        .maybeSingle();
+
+      // Compose a single address string from the structured address columns
+      const facilityAddress = [
+        facility?.address_line1,
+        facility?.city,
+        facility?.state,
+        facility?.postal_code,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      const { from, to } = yearRange(input.year);
+
+      // Fetch all incidents for the year for this facility
+      // Field mapping per 29 CFR 1904 — see oshaInjuryLog.ts for full field comments
+      const { data: incidents, error: incError } = await ctx.supabase
+        .from("incidents")
+        .select(
+          "id, kind, occurred_at, location, incident_type, description, data",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("occurred_at", from)
+        .lte("occurred_at", to)
+        .order("occurred_at", { ascending: true });
+
+      if (incError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to fetch incidents: ${incError.message}`,
+        });
+      }
+
+      // Map DB rows to OshaIncident shape.
+      // TODO: This mapping is best-effort. OSHA 300 requires the employer to
+      // determine recordability per 29 CFR 1904.7 before logging — all incidents
+      // are included here and the admin must pre-filter for recordability.
+      //
+      // Field mapping:
+      //   caseNo           → row index + 1 (sequential within this export)
+      //   employeeName     → data.injured_name for accidents; "N/A" for incidents
+      //                      (OSHA 300 Column B)
+      //   jobTitle         → data.injured_type for accidents; "N/A" for incidents
+      //                      (OSHA 300 Column C — closest available field)
+      //   dateOfInjury     → occurred_at (OSHA 300 Column D)
+      //   location         → location (OSHA 300 Column E)
+      //   description      → description (OSHA 300 Column F)
+      //   classification   → defaults to "other" (OSHA 300 Columns G–J)
+      //                      TODO: classification is not stored in the incidents
+      //                      table — it should be added in a future migration or
+      //                      mapped from incident_type by the admin.
+      //   daysAway         → 0 (TODO: not stored in incidents table)
+      //   daysRestricted   → 0 (TODO: not stored in incidents table)
+      //   injuryType       → data.nature_of_injury for accidents; incident_type otherwise
+      const mapped: OshaIncident[] = (incidents ?? []).map((row, i) => {
+        const data =
+          typeof row.data === "object" && row.data !== null
+            ? (row.data as Record<string, unknown>)
+            : {};
+
+        return {
+          caseNo: i + 1,
+          // OSHA Column B — Employee's Name
+          employeeName:
+            row.kind === "accident" && typeof data["injured_name"] === "string"
+              ? data["injured_name"]
+              : "N/A",
+          // OSHA Column C — Job Title (closest available field)
+          jobTitle:
+            row.kind === "accident" && typeof data["injured_type"] === "string"
+              ? data["injured_type"]
+              : "N/A",
+          // OSHA Column D — Date of injury
+          dateOfInjury: (row.occurred_at as string).slice(0, 10),
+          // OSHA Column E — Where the event occurred
+          location: row.location as string,
+          // OSHA Column F — Describe injury/illness
+          description: row.description as string,
+          // OSHA Columns G–J — Classification (TODO: not stored; defaults to "other")
+          classification: "other" as const,
+          // OSHA Column K — Days away from work (TODO: not stored)
+          daysAway: 0,
+          // OSHA Column L — Days of restricted work (TODO: not stored)
+          daysRestricted: 0,
+          // OSHA Columns M1–M6 — Injury type
+          injuryType:
+            typeof data["nature_of_injury"] === "string"
+              ? data["nature_of_injury"]
+              : (row.incident_type as string),
+        };
+      });
+
+      const base64 = await generateOshaLog({
+        facilityName: facility?.name ?? "",
+        // Address composed from structured columns: address_line1, city, state, postal_code
+        facilityAddress,
+        year: input.year,
+        incidents: mapped,
+        facilityId: ctx.facilityId,
+      });
+
+      return {
+        base64,
+        filename: `osha-${ctx.facilityId.slice(0, 8)}-${input.year}.pdf`,
+      };
+    }),
+
+  // --------------------------------------------------------------------------
+  // EPA RMP Refrigerant Log
+  // --------------------------------------------------------------------------
+  epaRmpLog: protectedProcedure
+    .input(
+      z.object({
+        year: z.number().int().min(2020).max(2030),
+        // Refrigerant type string — provided by the facility admin.
+        // Example: "R-717 (Ammonia)", "R-22", "R-404A"
+        refrigerantType: z.string().min(1).max(120),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const { data: epaFacility } = await ctx.supabase
+        .from("facilities")
+        .select("name, address_line1, city, state, postal_code")
+        .eq("id", ctx.facilityId)
+        .maybeSingle();
+
+      const epaFacilityAddress = [
+        epaFacility?.address_line1,
+        epaFacility?.city,
+        epaFacility?.state,
+        epaFacility?.postal_code,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      const { from, to } = yearRange(input.year);
+
+      const { data: readings, error } = await ctx.supabase
+        .from("refrigeration_readings")
+        .select(
+          "submitted_at, brine_supply, brine_return, brine_flow, ice_surface_temp, condenser_temp",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", from)
+        .lte("submitted_at", to)
+        .order("submitted_at", { ascending: true });
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to fetch refrigeration readings: ${error.message}`,
+        });
+      }
+
+      const base64 = await generateEpaRmpLog({
+        facilityName: epaFacility?.name ?? "",
+        facilityAddress: epaFacilityAddress,
+        year: input.year,
+        refrigerantType: input.refrigerantType,
+        readings: (readings ?? []).map((r) => ({
+          submitted_at: r.submitted_at,
+          brine_supply: r.brine_supply ?? null,
+          brine_return: r.brine_return ?? null,
+          brine_flow: r.brine_flow ?? null,
+          ice_surface_temp: r.ice_surface_temp ?? null,
+          condenser_temp: r.condenser_temp ?? null,
+        })),
+      });
+
+      return {
+        base64,
+        filename: `epa-rmp-${ctx.facilityId.slice(0, 8)}-${input.year}.pdf`,
+      };
+    }),
+
+  // --------------------------------------------------------------------------
+  // USA Hockey Rink Safety Report
+  // --------------------------------------------------------------------------
+  usaHockeySafety: protectedProcedure
+    .input(
+      z.object({
+        // ISO date string for the report period end (e.g. "2026-03-31")
+        reportDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        // ISO YYYY-MM for the month being reported (e.g. "2026-03")
+        month: z.string().regex(/^\d{4}-\d{2}$/),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const { data: facility } = await ctx.supabase
+        .from("facilities")
+        .select("name")
+        .eq("id", ctx.facilityId)
+        .maybeSingle();
+
+      const { from, to } = monthRange(input.month);
+
+      // Fetch ice depth sessions
+      const { data: iceSessions } = await ctx.supabase
+        .from("ice_depth_sessions")
+        .select("submitted_at, resurfacing_status, measurements, notes, status")
+        .eq("facility_id", ctx.facilityId)
+        .eq("status", "completed")
+        .gte("submitted_at", from)
+        .lte("submitted_at", to)
+        .order("submitted_at", { ascending: true });
+
+      // Fetch air quality readings
+      const { data: aqReadings } = await ctx.supabase
+        .from("air_quality_readings")
+        .select("submitted_at, co_ppm, no2_ppm, tier")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", from)
+        .lte("submitted_at", to)
+        .order("submitted_at", { ascending: true });
+
+      // Fetch incidents
+      const { data: incidents } = await ctx.supabase
+        .from("incidents")
+        .select("occurred_at, kind, incident_type, location, description")
+        .eq("facility_id", ctx.facilityId)
+        .gte("occurred_at", from)
+        .lte("occurred_at", to)
+        .order("occurred_at", { ascending: true });
+
+      // Fetch daily reports for completion stats
+      // Group by checklist_id to compute submitted/missed
+      const { data: dailyReports } = await ctx.supabase
+        .from("daily_reports")
+        .select("checklist_id, submitted_at")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", from)
+        .lte("submitted_at", to);
+
+      // Fetch checklist names
+      const { data: checklists } = await ctx.supabase
+        .from("daily_report_checklists")
+        .select("id, name")
+        .eq("facility_id", ctx.facilityId);
+
+      // Compute completion rates per checklist
+      const [year, monthNum] = input.month.split("-").map(Number) as [number, number];
+      const daysInMonth = new Date(year, monthNum, 0).getDate();
+
+      const submittedByChecklist: Record<string, number> = {};
+      for (const dr of dailyReports ?? []) {
+        const cid = dr.checklist_id as string;
+        submittedByChecklist[cid] = (submittedByChecklist[cid] ?? 0) + 1;
+      }
+
+      const drData: DailyReportCompletionData[] = (checklists ?? []).map((cl) => {
+        const submitted = submittedByChecklist[cl.id as string] ?? 0;
+        const missed = Math.max(0, daysInMonth - submitted);
+        return {
+          checklistName: cl.name as string,
+          submitted,
+          missed,
+          totalDays: daysInMonth,
+        };
+      });
+
+      const iceDepthData: IceDepthSessionData[] = (iceSessions ?? []).map((s) => ({
+        submitted_at: s.submitted_at as string,
+        resurfacing_status: s.resurfacing_status as "pre" | "mid" | "post" | null,
+        measurements: (typeof s.measurements === "object" && s.measurements !== null
+          ? Object.fromEntries(
+              Object.entries(s.measurements as Record<string, unknown>).filter(
+                ([, v]) => typeof v === "number",
+              ),
+            )
+          : {}) as Record<string, number>,
+        notes: s.notes as string | null,
+      }));
+
+      const airQualityData: AirQualityReadingData[] = (aqReadings ?? []).map((r) => ({
+        submitted_at: r.submitted_at as string,
+        co_ppm: r.co_ppm as number,
+        no2_ppm: r.no2_ppm as number,
+        tier: (r.tier as string | null) ?? "normal",
+      }));
+
+      const incidentData: IncidentRowData[] = (incidents ?? []).map((r) => ({
+        occurred_at: r.occurred_at as string,
+        kind: r.kind as "incident" | "accident",
+        incident_type: r.incident_type as string,
+        location: r.location as string,
+        description: r.description as string,
+      }));
+
+      const base64 = await generateUsaHockeySafety({
+        facilityName: facility?.name ?? "",
+        reportDate: input.reportDate,
+        iceDepthData,
+        airQualityData,
+        incidentData,
+        dailyReportData: drData,
+      });
+
+      return {
+        base64,
+        filename: `usa-hockey-${ctx.facilityId.slice(0, 8)}-${input.month}.pdf`,
+      };
+    }),
+
+  // --------------------------------------------------------------------------
+  // Monthly Board Pack
+  // --------------------------------------------------------------------------
+  monthlyBoardPack: protectedProcedure
+    .input(
+      z.object({
+        // ISO YYYY-MM for the month being reported (e.g. "2026-03")
+        month: z.string().regex(/^\d{4}-\d{2}$/),
+        // Human-readable label for the month (e.g. "March 2026")
+        monthLabel: z.string().min(1).max(40),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.facilityId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const { data: facility } = await ctx.supabase
+        .from("facilities")
+        .select("name")
+        .eq("id", ctx.facilityId)
+        .maybeSingle();
+
+      const { from, to } = monthRange(input.month);
+      const [year, monthNum] = input.month.split("-").map(Number) as [number, number];
+      const daysInMonth = new Date(year, monthNum, 0).getDate();
+
+      // ---- Air Quality Summary ----
+      const { data: aqReadings } = await ctx.supabase
+        .from("air_quality_readings")
+        .select("co_ppm, no2_ppm, tier")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", from)
+        .lte("submitted_at", to);
+
+      const aqSummary: AirQualitySummary = (() => {
+        if (!aqReadings || aqReadings.length === 0) {
+          return {
+            avgCoPpm: null,
+            avgNo2Ppm: null,
+            daysNormal: 0,
+            daysCaution: 0,
+            daysAction: 0,
+            daysEvacuate: 0,
+            trend: "no_data" as const,
+          };
+        }
+        const avgCo =
+          aqReadings.reduce((s, r) => s + (r.co_ppm as number), 0) /
+          aqReadings.length;
+        const avgNo2 =
+          aqReadings.reduce((s, r) => s + (r.no2_ppm as number), 0) /
+          aqReadings.length;
+
+        // Days by tier: count unique days (or use reading count as approximation)
+        const tierCounts: Record<string, number> = {
+          normal: 0,
+          caution: 0,
+          action: 0,
+          evacuate: 0,
+        };
+        for (const r of aqReadings) {
+          const tier = (r.tier as string | null) ?? "normal";
+          tierCounts[tier] = (tierCounts[tier] ?? 0) + 1;
+        }
+
+        return {
+          avgCoPpm: avgCo,
+          avgNo2Ppm: avgNo2,
+          daysNormal: tierCounts["normal"] ?? 0,
+          daysCaution: tierCounts["caution"] ?? 0,
+          daysAction: tierCounts["action"] ?? 0,
+          daysEvacuate: tierCounts["evacuate"] ?? 0,
+          trend: "stable" as const, // TODO: compare to prior month for real trend
+        };
+      })();
+
+      // ---- Refrigeration Summary ----
+      const { data: refReadings } = await ctx.supabase
+        .from("refrigeration_readings")
+        .select("submitted_at, brine_supply, brine_return")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", from)
+        .lte("submitted_at", to);
+
+      const refSummary: RefrigerationSummary = (() => {
+        if (!refReadings || refReadings.length === 0) {
+          return {
+            avgBrineDeltaT: null,
+            daysOutsideNormal: 0,
+            totalReadingDays: 0,
+            trend: "no_data" as const,
+          };
+        }
+        const deltaTValues = refReadings
+          .filter(
+            (r) => r.brine_supply !== null && r.brine_return !== null,
+          )
+          .map((r) => (r.brine_supply as number) - (r.brine_return as number));
+
+        const avgDeltaT =
+          deltaTValues.length > 0
+            ? deltaTValues.reduce((a, b) => a + b, 0) / deltaTValues.length
+            : null;
+
+        // Unique reading days
+        const readingDays = new Set(
+          refReadings.map((r) => (r.submitted_at as string).slice(0, 10)),
+        );
+
+        // TODO: daysOutsideNormal requires threshold config from facility_config.
+        // For now, report 0 — a future enhancement should fetch the thresholds.
+        return {
+          avgBrineDeltaT: avgDeltaT,
+          daysOutsideNormal: 0,
+          totalReadingDays: readingDays.size,
+          trend: "stable" as const,
+        };
+      })();
+
+      // ---- Incident Summary ----
+      const { data: incidents } = await ctx.supabase
+        .from("incidents")
+        .select("kind, incident_type")
+        .eq("facility_id", ctx.facilityId)
+        .gte("occurred_at", from)
+        .lte("occurred_at", to);
+
+      const incSummary: IncidentSummary = (() => {
+        if (!incidents || incidents.length === 0) {
+          return { byType: {}, total: 0, accidents: 0 };
+        }
+        const byType: Record<string, number> = {};
+        let accidents = 0;
+        for (const r of incidents) {
+          byType[r.incident_type as string] =
+            (byType[r.incident_type as string] ?? 0) + 1;
+          if (r.kind === "accident") accidents++;
+        }
+        return { byType, total: incidents.length, accidents };
+      })();
+
+      // ---- Checklist Completion Rates ----
+      const { data: checklists } = await ctx.supabase
+        .from("daily_report_checklists")
+        .select("id, name")
+        .eq("facility_id", ctx.facilityId);
+
+      const { data: dailyReports } = await ctx.supabase
+        .from("daily_reports")
+        .select("checklist_id")
+        .eq("facility_id", ctx.facilityId)
+        .gte("submitted_at", from)
+        .lte("submitted_at", to);
+
+      const submittedByCl: Record<string, number> = {};
+      for (const dr of dailyReports ?? []) {
+        const cid = dr.checklist_id as string;
+        submittedByCl[cid] = (submittedByCl[cid] ?? 0) + 1;
+      }
+
+      const completionRates: CompletionRate[] = (checklists ?? []).map((cl) => {
+        const submitted = submittedByCl[cl.id as string] ?? 0;
+        return {
+          checklistName: cl.name as string,
+          submitted,
+          missed: Math.max(0, daysInMonth - submitted),
+          totalDays: daysInMonth,
+        };
+      });
+
+      // ---- Active Alerts ----
+      const { data: alertRows } = await ctx.supabase
+        .from("alerts")
+        .select("title, severity, created_at, alert_type")
+        .eq("facility_id", ctx.facilityId)
+        .is("resolved_at", null)
+        .order("created_at", { ascending: false });
+
+      const alerts: ActiveAlert[] = (alertRows ?? []).map((a) => ({
+        title: a.title as string,
+        severity: a.severity as "info" | "warning" | "critical",
+        createdAt: a.created_at as string,
+        alertType: a.alert_type as string,
+      }));
+
+      const base64 = await generateMonthlyBoardPack({
+        facilityName: facility?.name ?? "",
+        month: input.monthLabel,
+        airQualitySummary: aqSummary,
+        refrigerationSummary: refSummary,
+        incidentSummary: incSummary,
+        completionRates,
+        alerts,
+      });
+
+      return {
+        base64,
+        filename: `board-pack-${ctx.facilityId.slice(0, 8)}-${input.month}.pdf`,
+      };
+    }),
+});

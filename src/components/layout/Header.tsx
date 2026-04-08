@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useSyncStatus } from "@/hooks/useSyncStatus";
+import { useSyncContext } from "@/context/SyncContext";
+import { SyncStatus } from "@/components/layout/SyncStatus";
 
 export type SyncStatusValue = "synced" | "pending" | "offline";
 
@@ -13,16 +16,18 @@ export type HeaderProps = {
 };
 
 /**
- * Dashboard chrome header. Purely presentational — owns no state.
- * Parent wires facility/user/sync data and passes a menu toggle handler.
+ * Dashboard chrome header. Owns no state except what it reads from hooks.
+ * The `syncStatus` / `pendingCount` props are kept for backward-compat with
+ * DashboardShell — live values from useSyncStatus() take precedence.
  */
 export function Header({
   facilityName,
   userName,
-  syncStatus,
-  pendingCount,
   onMenuToggle,
 }: HeaderProps) {
+  const { pendingCount, lastSyncedAt } = useSyncStatus();
+  const { triggerPull } = useSyncContext();
+
   return (
     <header className="flex items-center justify-between border-b border-grey/30 bg-darkbg px-4 py-3 sm:px-6">
       <div className="flex items-center gap-3">
@@ -62,45 +67,13 @@ export function Header({
         )}
       </div>
       <div className="flex items-center gap-3 sm:gap-4">
-        <SyncBadge syncStatus={syncStatus} pendingCount={pendingCount} />
+        <SyncStatus
+          pendingCount={pendingCount}
+          lastSyncedAt={lastSyncedAt}
+          onRetry={triggerPull}
+        />
         <span className="hidden text-sm text-grey sm:inline">{userName}</span>
       </div>
     </header>
-  );
-}
-
-function SyncBadge({
-  syncStatus,
-  pendingCount,
-}: {
-  syncStatus: SyncStatusValue;
-  pendingCount?: number;
-}) {
-  const { dotColor, label } = (() => {
-    switch (syncStatus) {
-      case "synced":
-        return { dotColor: "var(--color-brand-green)", label: "Synced" };
-      case "pending":
-        return {
-          dotColor: "var(--color-brand-yellow)",
-          label: `${pendingCount ?? 0} pending`,
-        };
-      case "offline":
-        return { dotColor: "var(--color-brand-red)", label: "Offline" };
-    }
-  })();
-
-  return (
-    <span
-      className="inline-flex items-center gap-2 rounded-full border border-grey/30 px-2.5 py-1 text-xs text-grey"
-      aria-live="polite"
-    >
-      <span
-        className="inline-block h-2 w-2 rounded-full"
-        style={{ backgroundColor: dotColor }}
-        aria-hidden="true"
-      />
-      <span>{label}</span>
-    </span>
   );
 }

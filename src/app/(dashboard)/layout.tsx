@@ -56,6 +56,7 @@ export default async function DashboardLayout({
   // page, not in the chrome — keeping the shell purely presentational.
   const navItems: NavItem[] = [
     { label: "Dashboard", href: "/dashboard" },
+    { label: "Insights", href: "/insights" },
     { label: "Daily Reports", href: "/daily-reports" },
     { label: "Ice Operations", href: "/ice-operations" },
     { label: "Ice Depth", href: "/ice-depth" },
@@ -64,6 +65,7 @@ export default async function DashboardLayout({
     { label: "Incidents", href: "/incidents" },
     { label: "Scheduling", href: "/scheduling" },
     { label: "Communications", href: "/communications" },
+    { label: "Reports", href: "/reports" },
     { label: "Admin", href: "/admin" },
   ];
 

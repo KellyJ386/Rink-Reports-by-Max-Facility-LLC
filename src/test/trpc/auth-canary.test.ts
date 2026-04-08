@@ -71,6 +71,7 @@ const unauthedCtx: TRPCContext = {
   supabase: fakeSupabase as any,
   user: null,
   facilityId: null,
+  role: null,
 };
 
 // One simple query per top-level router. Each must require auth.

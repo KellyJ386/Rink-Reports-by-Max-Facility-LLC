@@ -99,10 +99,16 @@ async function flush(): Promise<void> {
       syncedAt: now,
     }));
     await db.queue.bulkPut(acked);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("rr:sync-ack", { detail: { syncedAt: new Date().toISOString() } }));
+    }
     return;
   }
 
   await db.queue.bulkPut(updated);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("rr:sync-ack", { detail: { syncedAt: new Date().toISOString() } }));
+  }
 }
 
 async function markFailed(

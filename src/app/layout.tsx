@@ -5,6 +5,8 @@ import { Providers } from "@/app/providers";
 export const metadata: Metadata = {
   title: "RinkReports",
   description: "RinkReports by Max Facility LLC",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "RinkReports" },
+  icons: { apple: "/icons/icon-192.svg" },
 };
 
 export default function RootLayout({

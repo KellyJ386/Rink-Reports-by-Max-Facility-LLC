@@ -14,6 +14,8 @@ import { BrandingDisplayCard } from "@/app/(dashboard)/admin/_components/Brandin
 import { ModuleTogglesCard } from "@/app/(dashboard)/admin/_components/ModuleTogglesCard";
 import { BillingConfigCard } from "@/app/(dashboard)/admin/_components/BillingConfigCard";
 import { ModuleConfigShell } from "@/app/(dashboard)/admin/_components/ModuleConfigShell";
+import { NotificationPrefsCard } from "@/app/(dashboard)/admin/_components/NotificationPrefsCard";
+import { RetentionPolicyCard } from "@/app/(dashboard)/admin/_components/RetentionPolicyCard";
 
 /**
  * Admin Control Center.
@@ -107,6 +109,8 @@ export default async function AdminPage() {
       {/* Platform-layer extras */}
       <ModuleTogglesCard />
       <BillingConfigCard />
+      <NotificationPrefsCard />
+      <RetentionPolicyCard />
       <ModuleConfigShell />
     </main>
   );

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import { trpc } from "@/lib/trpc";
 import { db, type QueuedRecord } from "@/lib/offline/db";
+import { usePdfExport } from "@/hooks/usePdfExport";
+import * as toast from "@/lib/toast";
 import {
   COMPRESSOR_FIELDS,
   FACILITY_FIELDS,
@@ -67,6 +69,8 @@ export function RecentRefrigerationReadings({
 }: RecentReadingsProps) {
   const recent = trpc.refrigeration.listRecent.useQuery({ limit: 50 });
   const [pending, setPending] = useState<PendingRow[]>([]);
+  const { downloadPdf, isExporting, setIsExporting } = usePdfExport();
+  const exportMutation = trpc.exports.refrigerationPdf.useMutation();
 
   useEffect(() => {
     let cancelled = false;
@@ -118,9 +122,36 @@ export function RecentRefrigerationReadings({
 
   const isEmpty = pending.length === 0 && dedupedServer.length === 0;
 
+  async function handleExportPdf() {
+    const today = new Date().toISOString().slice(0, 10);
+    const oldest = dedupedServer[dedupedServer.length - 1]?.submitted_at?.slice(0, 10) ?? today;
+    setIsExporting(true);
+    try {
+      const result = await exportMutation.mutateAsync({
+        startDate: oldest,
+        endDate: today,
+      });
+      downloadPdf(result);
+    } catch {
+      toast.show({ message: "Export failed — try again", kind: "error" });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <section className="rounded-lg border border-grey/30 bg-darkbg/40 p-6">
-      <h2 className="text-xl font-semibold text-white">Recent readings</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-white">Recent readings</h2>
+        <button
+          type="button"
+          onClick={() => { void handleExportPdf(); }}
+          disabled={isExporting || isEmpty}
+          className="rounded border border-navy px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-navy disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isExporting ? "Exporting…" : "Export PDF"}
+        </button>
+      </div>
 
       {isEmpty ? (
         <p className="mt-2 text-sm text-grey">
