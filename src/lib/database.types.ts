@@ -584,6 +584,41 @@ export type Database = {
           },
         ]
       }
+      billing_events: {
+        Row: {
+          id: string
+          facility_id: string
+          stripe_event_id: string
+          event_type: string
+          payload: Json
+          processed_at: string
+        }
+        Insert: {
+          id?: string
+          facility_id: string
+          stripe_event_id: string
+          event_type: string
+          payload: Json
+          processed_at?: string
+        }
+        Update: {
+          id?: string
+          facility_id?: string
+          stripe_event_id?: string
+          event_type?: string
+          payload?: Json
+          processed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facility_config: {
         Row: {
           created_at: string
@@ -599,6 +634,16 @@ export type Database = {
           calendar_feed_enabled: boolean
           scheduling_feed_url: string | null
           scheduling_feed_last_imported_at: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          plan_status: 'trial' | 'active' | 'past_due' | 'locked' | 'cancelled'
+          trial_ends_at: string | null
+          plan_tier: string
+          enabled_modules: Json
+          billing_email: string | null
+          seat_count: number
+          max_seats: number
+          past_due_since: string | null
         }
         Insert: {
           created_at?: string
@@ -614,6 +659,16 @@ export type Database = {
           calendar_feed_enabled?: boolean
           scheduling_feed_url?: string | null
           scheduling_feed_last_imported_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          plan_status?: 'trial' | 'active' | 'past_due' | 'locked' | 'cancelled'
+          trial_ends_at?: string | null
+          plan_tier?: string
+          enabled_modules?: Json
+          billing_email?: string | null
+          seat_count?: number
+          max_seats?: number
+          past_due_since?: string | null
         }
         Update: {
           created_at?: string
@@ -629,6 +684,16 @@ export type Database = {
           calendar_feed_enabled?: boolean
           scheduling_feed_url?: string | null
           scheduling_feed_last_imported_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          plan_status?: 'trial' | 'active' | 'past_due' | 'locked' | 'cancelled'
+          trial_ends_at?: string | null
+          plan_tier?: string
+          enabled_modules?: Json
+          billing_email?: string | null
+          seat_count?: number
+          max_seats?: number
+          past_due_since?: string | null
         }
         Relationships: [
           {
