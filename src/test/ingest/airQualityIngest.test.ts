@@ -172,8 +172,8 @@ describe("POST /api/ingest/air-quality", () => {
         "x-signature": "sig",
       },
       body: JSON.stringify({
-        co_ppm: 5,
-        no2_ppm: 0.3,
+        co_ppm: 2,
+        no2_ppm: 0.2,
         nh3_ppm: 0.1,
         reading_timestamp: new Date().toISOString(),
       }),
@@ -301,8 +301,8 @@ describe("POST /api/ingest/air-quality", () => {
         "x-signature": "sig",
       },
       body: JSON.stringify({
-        co_ppm: 5,
-        no2_ppm: 0.3,
+        co_ppm: 2,
+        no2_ppm: 0.2,
         nh3_ppm: 0.1,
         reading_timestamp: new Date().toISOString(),
       }),
