@@ -477,6 +477,107 @@ export const adminRouter = router({
   branding: brandingAdminRouter,
 
   // -------------------------------------------------------------------
+  // Phase E — Calendar export
+  // -------------------------------------------------------------------
+
+  /**
+   * Get the current calendar feed URL and enabled status for this
+   * facility. Requires admin role. Returns the public feed URL if
+   * the feed is enabled and a token exists, otherwise null.
+   */
+  getCalendarFeedUrl: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.facilityId) throw new TRPCError({ code: "FORBIDDEN" });
+    await requireAdmin(ctx);
+
+    const { data, error } = await ctx.supabase
+      .from("facility_config")
+      .select("calendar_feed_token, calendar_feed_enabled")
+      .eq("facility_id", ctx.facilityId)
+      .maybeSingle();
+
+    if (error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: error.message,
+      });
+    }
+
+    const enabled = data?.calendar_feed_enabled ?? false;
+    const token = data?.calendar_feed_token;
+
+    if (!enabled || !token) {
+      return { url: null, enabled };
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://rinkreports.com";
+    const url = `${appUrl}/api/calendar/${ctx.facilityId}?token=${token}`;
+
+    return { url, enabled };
+  }),
+
+  /**
+   * Enable the calendar feed for this facility by generating a new
+   * token. Requires admin role. Returns the public feed URL.
+   */
+  enableCalendarFeed: protectedProcedure.mutation(async ({ ctx }) => {
+    if (!ctx.facilityId) throw new TRPCError({ code: "FORBIDDEN" });
+    await requireAdmin(ctx);
+
+    const token = `${crypto.randomUUID()}_${crypto.getRandomValues(new Uint8Array(16)).toString()}`;
+
+    const { error } = await ctx.supabase
+      .from("facility_config")
+      .update({
+        calendar_feed_token: token,
+        calendar_feed_enabled: true,
+      })
+      .eq("facility_id", ctx.facilityId);
+
+    if (error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: error.message,
+      });
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://rinkreports.com";
+    const url = `${appUrl}/api/calendar/${ctx.facilityId}?token=${token}`;
+
+    return { url };
+  }),
+
+  /**
+   * Regenerate the calendar feed token for this facility. Requires
+   * admin role. The old token is invalidated immediately. Returns the
+   * new public feed URL.
+   */
+  regenerateCalendarToken: protectedProcedure.mutation(async ({ ctx }) => {
+    if (!ctx.facilityId) throw new TRPCError({ code: "FORBIDDEN" });
+    await requireAdmin(ctx);
+
+    const token = `${crypto.randomUUID()}_${crypto.getRandomValues(new Uint8Array(16)).toString()}`;
+
+    const { error } = await ctx.supabase
+      .from("facility_config")
+      .update({
+        calendar_feed_token: token,
+      })
+      .eq("facility_id", ctx.facilityId);
+
+    if (error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: error.message,
+      });
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://rinkreports.com";
+    const url = `${appUrl}/api/calendar/${ctx.facilityId}?token=${token}`;
+
+    return { url };
+  }),
+
+  // -------------------------------------------------------------------
   // Phase D — retention policy
   // -------------------------------------------------------------------
 

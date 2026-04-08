@@ -13,6 +13,7 @@ import {
 } from "@/modules/incidents/schema";
 
 import { BodyDiagram } from "@/modules/incidents/components/BodyDiagram";
+import { WeatherSummary } from "@/modules/incidents/components/WeatherSummary";
 
 /**
  * The Incident / Accident form. Per CLAUDE.md Rule 3:
@@ -232,6 +233,8 @@ export function IncidentForm({
       <h2 className="text-xl font-semibold text-white">
         {kind === "incident" ? "Incident report" : "Accident report"}
       </h2>
+
+      <WeatherSummary />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Date & time *">
