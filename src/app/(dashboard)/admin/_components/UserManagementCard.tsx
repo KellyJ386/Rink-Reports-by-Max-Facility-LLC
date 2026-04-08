@@ -22,10 +22,14 @@ type Role = (typeof ROLES)[number];
  * The role dropdown is disabled for the current user (you can't
  * demote yourself out of admin) and the cert grants pull from the
  * same scheduling_certifications table the Scheduling editor reads.
+ *
+ * Seat usage is shown at the top of the card. When used >= max,
+ * the "Invite User" prompt is disabled with a tooltip.
  */
 export function UserManagementCard() {
   const utils = trpc.useUtils();
   const list = trpc.admin.listUsers.useQuery();
+  const seatUsage = trpc.billing.getSeatUsage.useQuery();
   const certs = trpc.admin.scheduling.listCertifications.useQuery();
   const staffCerts = trpc.admin.scheduling.listStaffCerts.useQuery();
   const updateRole = trpc.admin.updateUserRole.useMutation({
@@ -47,15 +51,44 @@ export function UserManagementCard() {
     });
   }, []);
 
+  const atSeatLimit =
+    seatUsage.data !== undefined &&
+    seatUsage.data.used >= seatUsage.data.max;
+
   return (
     <section className="rounded-lg border border-grey/30 bg-darkbg/40 p-6">
-      <h2 className="text-xl font-semibold text-white">Staff roster</h2>
-      <p className="mt-1 text-sm text-grey">
-        Members of this facility, their roles, and the certifications
-        they hold. To add a new user, create them in Supabase Auth and
-        refresh; once they exist they can be assigned a role and
-        certifications here.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-white">Staff roster</h2>
+          <p className="mt-1 text-sm text-grey">
+            Members of this facility, their roles, and the certifications
+            they hold. To add a new user, create them in Supabase Auth and
+            refresh; once they exist they can be assigned a role and
+            certifications here.
+          </p>
+        </div>
+
+        {/* Seat usage indicator */}
+        {seatUsage.data && (
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-sm text-grey">
+              <span className={atSeatLimit ? "text-red font-semibold" : "text-white font-semibold"}>
+                {seatUsage.data.used}
+              </span>
+              {" / "}
+              {seatUsage.data.max} seats
+            </span>
+            {atSeatLimit && (
+              <span
+                className="max-w-xs text-right text-xs text-red"
+                title={`You've reached your seat limit (${seatUsage.data.max}/${seatUsage.data.max}). Contact support to add more seats.`}
+              >
+                Seat limit reached. Contact support to add more seats.
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       {list.isLoading && <p className="mt-4 text-sm text-grey">Loading…</p>}
       {list.error && <p className="mt-4 text-sm text-red">{list.error.message}</p>}
