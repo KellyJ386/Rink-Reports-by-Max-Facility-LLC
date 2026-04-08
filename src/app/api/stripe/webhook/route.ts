@@ -9,16 +9,28 @@ import { createOrUpdateContact } from "@/lib/hubspot";
  * POST /api/stripe/webhook
  *
  * Stripe webhook handler. Verifies the signature against
- * STRIPE_WEBHOOK_SECRET, then keeps `facility_subscriptions` in
- * sync with the upstream subscription state. Service-role Supabase
- * client is used here because the webhook has no Supabase Auth
- * session — Stripe's signature is the authentication.
+ * STRIPE_WEBHOOK_SECRET, then keeps `facility_config` billing fields
+ * in sync with the upstream subscription state.
+ *
+ * Design decisions:
+ *   - Write to billing_events FIRST before updating facility_config.
+ *     The UNIQUE index on stripe_event_id makes this the idempotency
+ *     check: if insert fails with unique violation, return 200 without
+ *     re-processing.
+ *   - plan_status is our internal state machine, not Stripe's status
+ *     enum, so the app can express 'locked' (past_due > 7 days) without
+ *     relying on Stripe strings.
+ *   - enabled_modules is fully enabled for active/trial, and for deleted
+ *     subscriptions all modules except adminControlCenter are disabled.
  *
  * Events handled:
- *   * checkout.session.completed       — first link of customer to facility
- *   * customer.subscription.created    — new subscription, store id + status
- *   * customer.subscription.updated    — status / period_end changes
- *   * customer.subscription.deleted    — flip to canceled
+ *   * customer.subscription.created
+ *   * customer.subscription.updated
+ *   * customer.subscription.deleted
+ *   * invoice.payment_succeeded
+ *   * invoice.payment_failed
+ *   * customer.subscription.trial_will_end
+ *   * checkout.session.completed  (preserved from earlier handler)
  *
  * IMPORTANT: Next.js App Router Route Handlers expose the raw body
  * via `await req.text()`. The Stripe SDK requires the RAW body for
@@ -29,6 +41,82 @@ import { createOrUpdateContact } from "@/lib/hubspot";
  */
 
 export const dynamic = "force-dynamic";
+
+const ALL_MODULES_ENABLED = {
+  dailyReports: true,
+  iceOperations: true,
+  refrigeration: true,
+  airQuality: true,
+  incidentReporting: true,
+  employeeScheduling: true,
+  communications: true,
+  adminControlCenter: true,
+};
+
+const ALL_MODULES_DISABLED_EXCEPT_ADMIN = {
+  dailyReports: false,
+  iceOperations: false,
+  refrigeration: false,
+  airQuality: false,
+  incidentReporting: false,
+  employeeScheduling: false,
+  communications: false,
+  adminControlCenter: true,
+};
+
+/** Map a Stripe subscription status to our internal plan_status. */
+function mapStripeStatus(
+  stripeStatus: string,
+): "active" | "trial" | "past_due" | "cancelled" | "locked" {
+  switch (stripeStatus) {
+    case "active":
+      return "active";
+    case "trialing":
+      return "trial";
+    case "past_due":
+      return "past_due";
+    case "canceled":
+    case "incomplete_expired":
+      return "cancelled";
+    case "unpaid":
+    case "incomplete":
+    case "paused":
+      return "locked";
+    default:
+      return "locked";
+  }
+}
+
+/**
+ * Attempt to insert a billing_events row for idempotency.
+ * Returns true if we should proceed with processing, false if the event
+ * was already processed (unique violation on stripe_event_id).
+ */
+async function recordBillingEvent(
+  supabase: ReturnType<typeof createSupabaseServiceRoleClient>,
+  facilityId: string,
+  eventId: string,
+  eventType: string,
+  payload: unknown,
+): Promise<boolean> {
+  const { error } = await supabase.from("billing_events").insert({
+    facility_id: facilityId,
+    stripe_event_id: eventId,
+    event_type: eventType,
+    payload: payload as import("@/lib/database.types").Json,
+  });
+
+  if (error) {
+    // PostgreSQL unique violation code
+    if (error.code === "23505") {
+      // Already processed — idempotent no-op
+      return false;
+    }
+    // Any other error is a hard failure
+    throw new Error(`billing_events insert failed: ${error.message}`);
+  }
+  return true;
+}
 
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
@@ -62,11 +150,13 @@ export async function POST(req: Request) {
   try {
     switch (event.type) {
       case "checkout.session.completed": {
+        // Preserved from earlier handler — link customer to facility on checkout
         const session = event.data.object as Stripe.Checkout.Session;
         const facilityId =
           session.client_reference_id ??
           (session.metadata?.facility_id ?? null);
         if (!facilityId) break;
+
         const customerId =
           typeof session.customer === "string"
             ? session.customer
@@ -75,71 +165,130 @@ export async function POST(req: Request) {
           typeof session.subscription === "string"
             ? session.subscription
             : (session.subscription?.id ?? null);
+
         await supabase
-          .from("facility_subscriptions")
+          .from("facility_config")
           .update({
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
-            // Don't flip status here — wait for the dedicated
-            // subscription event so we get the canonical Stripe
-            // status string instead of guessing.
           })
           .eq("facility_id", facilityId);
         break;
       }
 
-      case "customer.subscription.created":
-      case "customer.subscription.updated":
-      case "customer.subscription.deleted": {
+      case "customer.subscription.created": {
         const subscription = event.data.object as Stripe.Subscription;
-        const facilityId = subscription.metadata?.facility_id ?? null;
+        const facilityId = subscription.metadata?.facilityId ?? subscription.metadata?.facility_id ?? null;
         if (!facilityId) break;
 
-        const status =
-          event.type === "customer.subscription.deleted"
-            ? "canceled"
-            : subscription.status;
+        const shouldProcess = await recordBillingEvent(
+          supabase,
+          facilityId,
+          event.id,
+          event.type,
+          event.data.object,
+        );
+        if (!shouldProcess) break;
 
-        // Pluck the plan tag we stamped at checkout time, if any.
-        const plan = subscription.metadata?.plan ?? null;
-
-        // current_period_end lives on the first item in the items
-        // array under newer Stripe API versions; fall back to the
-        // top-level field if it's still around.
-        const currentPeriodEndRaw =
-          (subscription as unknown as { current_period_end?: number })
-            .current_period_end ??
-          subscription.items.data[0]?.current_period_end ??
-          null;
-        const currentPeriodEnd = currentPeriodEndRaw
-          ? new Date(currentPeriodEndRaw * 1000).toISOString()
+        const planStatus = mapStripeStatus(subscription.status);
+        const trialEnd = (subscription as unknown as { trial_end?: number | null }).trial_end;
+        const trialEndsAt = trialEnd
+          ? new Date(trialEnd * 1000).toISOString()
           : null;
 
-        const { error } = await supabase
-          .from("facility_subscriptions")
+        const quantity = subscription.items.data[0]?.quantity ?? 1;
+
+        await supabase
+          .from("facility_config")
           .update({
-            status,
-            plan,
             stripe_subscription_id: subscription.id,
-            current_period_end: currentPeriodEnd,
+            plan_status: planStatus,
+            trial_ends_at: trialEndsAt,
+            seat_count: quantity,
+            enabled_modules: ALL_MODULES_ENABLED,
           })
           .eq("facility_id", facilityId);
-        if (error) {
-          console.error("[stripe webhook] update failed:", error.message);
-          return NextResponse.json(
-            { error: error.message },
-            { status: 500 },
-          );
+        break;
+      }
+
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription;
+        const facilityId = subscription.metadata?.facilityId ?? subscription.metadata?.facility_id ?? null;
+        if (!facilityId) break;
+
+        const shouldProcess = await recordBillingEvent(
+          supabase,
+          facilityId,
+          event.id,
+          event.type,
+          event.data.object,
+        );
+        if (!shouldProcess) break;
+
+        const planStatus = mapStripeStatus(subscription.status);
+
+        // Fetch current facility_config to check if past_due_since should be set
+        const { data: configRow } = await supabase
+          .from("facility_config")
+          .select("plan_status, past_due_since")
+          .eq("facility_id", facilityId)
+          .limit(1)
+          .maybeSingle();
+
+        const trialEnd = (subscription as unknown as { trial_end?: number | null }).trial_end;
+        const trialEndsAt = trialEnd
+          ? new Date(trialEnd * 1000).toISOString()
+          : null;
+
+        const quantity = subscription.items.data[0]?.quantity ?? 1;
+
+        const updatePayload: Record<string, unknown> = {
+          stripe_subscription_id: subscription.id,
+          plan_status: planStatus,
+          trial_ends_at: trialEndsAt,
+          seat_count: quantity,
+        };
+
+        // Set past_due_since only when first transitioning to past_due
+        if (planStatus === "past_due" && !configRow?.past_due_since) {
+          updatePayload.past_due_since = new Date().toISOString();
+        }
+        // Clear past_due_since when coming back to active
+        if (planStatus === "active") {
+          updatePayload.past_due_since = null;
         }
 
-        // Best-effort HubSpot Contact sync. Look up the facility's
-        // owner email so we can patch the right Contact.
+        await supabase
+          .from("facility_config")
+          .update(updatePayload)
+          .eq("facility_id", facilityId);
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        const facilityId = subscription.metadata?.facilityId ?? subscription.metadata?.facility_id ?? null;
+        if (!facilityId) break;
+
+        const shouldProcess = await recordBillingEvent(
+          supabase,
+          facilityId,
+          event.id,
+          event.type,
+          event.data.object,
+        );
+        if (!shouldProcess) break;
+
+        await supabase
+          .from("facility_config")
+          .update({
+            plan_status: "cancelled",
+            enabled_modules: ALL_MODULES_DISABLED_EXCEPT_ADMIN,
+          })
+          .eq("facility_id", facilityId);
+
+        // Best-effort HubSpot sync on cancellation
         try {
-          const { data: facility } = await supabase
-            .from("facilities")
-            .select("name")
-            .eq("id", facilityId)
-            .maybeSingle();
           const { data: adminProfile } = await supabase
             .from("user_profiles")
             .select("user_id")
@@ -151,26 +300,141 @@ export async function POST(req: Request) {
             const { data: adminUser } =
               await supabase.auth.admin.getUserById(adminProfile.user_id);
             const adminEmail = adminUser.user?.email ?? "";
+            const { data: facility } = await supabase
+              .from("facilities")
+              .select("name")
+              .eq("id", facilityId)
+              .maybeSingle();
             if (adminEmail) {
               void createOrUpdateContact({
                 email: adminEmail,
                 facility_name: facility?.name,
                 facility_id: facilityId,
-                subscription_status: status,
-                plan: plan ?? undefined,
+                subscription_status: "canceled",
+                plan: undefined,
               });
             }
           }
         } catch (err) {
-          // HubSpot lookup is non-critical — log and continue.
           console.warn("[stripe webhook] hubspot sync skipped:", err);
         }
         break;
       }
 
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId =
+          typeof invoice.customer === "string"
+            ? invoice.customer
+            : (invoice.customer?.id ?? null);
+        if (!customerId) break;
+
+        // Find facility by stripe_customer_id
+        const { data: configRow } = await supabase
+          .from("facility_config")
+          .select("facility_id")
+          .eq("stripe_customer_id", customerId)
+          .limit(1)
+          .maybeSingle();
+        if (!configRow?.facility_id) break;
+
+        const facilityId = configRow.facility_id;
+
+        const shouldProcess = await recordBillingEvent(
+          supabase,
+          facilityId,
+          event.id,
+          event.type,
+          event.data.object,
+        );
+        if (!shouldProcess) break;
+
+        await supabase
+          .from("facility_config")
+          .update({
+            plan_status: "active",
+            past_due_since: null,
+          })
+          .eq("facility_id", facilityId);
+        break;
+      }
+
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId =
+          typeof invoice.customer === "string"
+            ? invoice.customer
+            : (invoice.customer?.id ?? null);
+        if (!customerId) break;
+
+        // Find facility by stripe_customer_id
+        const { data: configRow } = await supabase
+          .from("facility_config")
+          .select("facility_id, plan_status, past_due_since")
+          .eq("stripe_customer_id", customerId)
+          .limit(1)
+          .maybeSingle();
+        if (!configRow?.facility_id) break;
+
+        const facilityId = configRow.facility_id;
+
+        const shouldProcess = await recordBillingEvent(
+          supabase,
+          facilityId,
+          event.id,
+          event.type,
+          event.data.object,
+        );
+        if (!shouldProcess) break;
+
+        // Only escalate to past_due if currently active or trial
+        if (
+          configRow.plan_status === "active" ||
+          configRow.plan_status === "trial"
+        ) {
+          await supabase
+            .from("facility_config")
+            .update({
+              plan_status: "past_due",
+              past_due_since: new Date().toISOString(),
+            })
+            .eq("facility_id", facilityId);
+        }
+        break;
+      }
+
+      case "customer.subscription.trial_will_end": {
+        const subscription = event.data.object as Stripe.Subscription;
+        const facilityId = subscription.metadata?.facilityId ?? subscription.metadata?.facility_id ?? null;
+        if (!facilityId) break;
+
+        // Insert a trial_ending alert (dedup check: no open alert of this type)
+        const { data: existing } = await supabase
+          .from("alerts")
+          .select("id")
+          .eq("facility_id", facilityId)
+          .eq("alert_type", "trial_ending")
+          .is("resolved_at", null)
+          .limit(1)
+          .maybeSingle();
+
+        if (!existing) {
+          await supabase.from("alerts").insert({
+            facility_id: facilityId,
+            alert_type: "trial_ending",
+            severity: "warning",
+            target_identifier: "trial",
+            title: "Trial ends in 3 days",
+            description:
+              "Upgrade now to continue using RinkReports.",
+            metadata: {},
+          });
+        }
+        break;
+      }
+
       default:
-        // Unhandled event types — return 200 so Stripe doesn't
-        // retry. Add new cases above as we wire more flows.
+        // Unhandled event types — return 200 so Stripe doesn't retry.
         break;
     }
   } catch (err) {
