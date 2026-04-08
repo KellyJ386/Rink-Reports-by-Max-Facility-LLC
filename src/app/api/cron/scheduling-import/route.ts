@@ -9,6 +9,7 @@ import {
   type StaffMember,
 } from "@/server/scheduling/importers/matchStaff";
 import type { ParsedShift } from "@/server/scheduling/importers/types";
+import type { Json } from "@/lib/database.types";
 
 /**
  * GET /api/cron/scheduling-import
@@ -95,17 +96,18 @@ export async function GET(req: Request) {
         return { imported: 0, conflicts: 0 };
       }
 
-      // 5. Fetch roster for staff matching
+      // 5. Fetch roster for staff matching.
+      // user_profiles has no email column — name-only matching here.
       const { data: rosterData } = await supabase
         .from("user_profiles")
-        .select("user_id, full_name, email")
+        .select("user_id, full_name")
         .eq("facility_id", facilityId)
         .neq("role", "viewer");
 
       const roster: StaffMember[] = (rosterData ?? []).map((r) => ({
         id: r.user_id,
         name: r.full_name ?? "",
-        email: r.email ?? null,
+        email: null,
       }));
 
       // 6. Fetch existing schedule IDs for this facility
@@ -180,7 +182,7 @@ export async function GET(req: Request) {
                   source: "scheduling_feed",
                   externalId: shift.externalId,
                   feedUrl,
-                } as Record<string, unknown>,
+                } as unknown as Json,
               });
             }
             facilityConflicts++;

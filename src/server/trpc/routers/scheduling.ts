@@ -583,10 +583,12 @@ export const schedulingRouter = router({
         shifts = normalizeActiveNetwork(input.content);
       }
 
-      // 2. Fetch roster for this facility (users with any role, for matching)
+      // 2. Fetch roster for this facility (users with any role, for matching).
+      // user_profiles has no email column — email lives in auth.users and is
+      // not reachable via the authenticated client. Name-only matching for now.
       const { data: rosterData, error: rosterErr } = await ctx.supabase
         .from("user_profiles")
-        .select("user_id, full_name, email")
+        .select("user_id, full_name")
         .eq("facility_id", ctx.facilityId)
         .neq("role", "viewer");
       if (rosterErr) {
@@ -598,7 +600,7 @@ export const schedulingRouter = router({
       const roster: StaffMember[] = (rosterData ?? []).map((r) => ({
         id: r.user_id,
         name: r.full_name ?? "",
-        email: r.email ?? null,
+        email: null,
       }));
 
       // 3. Match staff for each shift
