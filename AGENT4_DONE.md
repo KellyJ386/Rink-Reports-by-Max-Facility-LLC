@@ -1,47 +1,45 @@
-# Phase C Agent 4 — Viewer Role — Completion Marker
+# Phase D — Agent 4 (Retention Policy) — Completion Marker
 
-Branch: `phase-c/viewer-role`
-Worktree: `/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-abacb1fd`
+Branch: `phase-d/retention-policy`
+Worktree: `/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-aef8e7a8`
 
 ## Task Statuses
 
 | Task | Description | Status | Commit SHA |
 |------|-------------|--------|------------|
-| 1 | Add viewer to role types + DB migration | DONE | 92aa9e3 |
-| 2 | Role guard utility + viewerProcedure + role in ctx | DONE | 66c5a0f |
-| 3 | Viewer route group (layout + dashboard + alerts pages) | DONE | 3db52f7 |
-| 4 | Proxy role-based route redirect | DONE | e834f44 |
-| 5 | Admin: viewer role option in staff roster | DONE | 82cd1dc |
-| 6 | Tests: role guards + proxy redirect | DONE | 0271f32 |
+| 1 | Migrations 019 + 020 + RetentionPolicies type | DONE (pre-landed) | 3c32b1c |
+| 2 | Retention sweep cron + vercel.json | DONE | e3cc2cd |
+| 3 | Admin tRPC procedures + RetentionPolicyCard UI | DONE | 335d62f |
+| 4 | Tests (cron + admin validation) | DONE | ac522c4 |
 
-## Notes
+## Deliverables
 
-### Task 1
-`supabase/migrations/016_add_viewer_role.sql` extends the `public.user_role`
-enum in-place (the foundation SQL used an enum type, not a CHECK constraint).
-`database.types.ts` already included `viewer`; `Constants.public.Enums.user_role`
-is `["super_admin","admin","manager","staff","viewer"]`.
+### Migrations
+- `supabase/migrations/019_retention_policies.sql` — adds `retention_policies JSONB` to `facility_config`
+- `supabase/migrations/020_archived_at_columns.sql` — adds `archived_at TIMESTAMPTZ` to 4 data tables (NOT incidents or air_quality_readings)
 
-### Task 2
-`src/lib/auth/roles.ts` includes `super_admin: 5` since that role exists in the
-existing DB enum. `viewerProcedure` blocks mutations only; queries are allowed.
+### TypeScript types
+- `src/lib/offline/types.ts` — `RetentionPolicies` type (pre-landed)
+- `src/lib/database.types.ts` — `facility_config` Row/Insert/Update updated with `retention_policies` column
 
-### Task 3
-`(viewer)/alerts/page.tsx` stubs `trpc.alerts.list.useQuery` pending Agent 2
-(phase-c/anomaly-detection). `(viewer)/dashboard/page.tsx` renders a placeholder
-pending Agent 1's insights charts. Both have clear TODO comments.
+### Cron job
+- `src/app/api/cron/retention-sweep/route.ts` — nightly 2am UTC, soft-delete + hard-delete after 30-day grace
+- `vercel.json` — retention-sweep entry added to `crons` array
 
-### Task 4
-`viewerRedirectPath` is a pure exported helper in `proxy.ts` for testability.
-The proxy does one extra DB query on `/dashboard` and `/viewer` paths when the
-user is authenticated — acceptable for now.
+### Admin tRPC
+- `src/server/trpc/routers/admin.ts` — `getRetentionPolicies` + `updateRetentionPolicies` procedures appended
 
-### Task 5
-`UserManagementCard.tsx` uses `Constants.public.Enums.user_role` which already
-includes `viewer`. Added label capitalization so options render as "Viewer",
-"Admin", "Super admin", etc.
+### Admin UI
+- `src/app/(dashboard)/admin/_components/RetentionPolicyCard.tsx` — 4 configurable fields (min 365), 2 compliance-locked rows
+- `src/app/(dashboard)/admin/page.tsx` — RetentionPolicyCard wired in
 
-### Task 6
-Full test suite: **117 tests passing** across 17 files; `tsc --noEmit` clean.
-`proxy.test.ts` tests the pure `viewerRedirectPath` helper rather than the full
-Next.js middleware (which requires Next.js server environment to mock).
+### Tests
+- `src/test/retention/retention.cron.test.ts` — 9 tests
+- `src/test/retention/retention.admin.test.ts` — 12 tests
+- Total suite: 179 tests passing across 26 files; typecheck clean
+
+## Key Design Decisions
+- `incidents` and `air_quality_readings` excluded from `RETENTION_TABLES` in cron — never touched regardless of policy config
+- Admin can only set values >= 365 (Zod `min(365)`); compliance fields are `z.null()` — cannot be set to a number
+- Soft delete sets `archived_at = NOW()`; hard delete purges when `archived_at < NOW() - 30 days`
+- Bearer token auth via `CRON_SECRET` env var (matches Phase C anomaly-scan pattern)
