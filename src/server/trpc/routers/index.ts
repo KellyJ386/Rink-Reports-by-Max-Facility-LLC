@@ -18,6 +18,8 @@ import { notificationsRouter } from "@/server/trpc/routers/notifications";
 import { exportsRouter } from "@/server/trpc/routers/exports";
 import { devicesRouter } from "@/server/trpc/routers/devices";
 import { weatherRouter } from "@/server/trpc/routers/weather";
+import { orgRouter } from "@/server/trpc/routers/org";
+import { superAdminRouter } from "@/server/trpc/routers/super-admin";
 
 export const appRouter = router({
   admin: adminRouter,
@@ -37,6 +39,8 @@ export const appRouter = router({
   exports: exportsRouter,
   devices: devicesRouter,
   weather: weatherRouter,
+  org: orgRouter,
+  superAdmin: superAdminRouter,
 });
 
 export type AppRouter = typeof appRouter;
