@@ -824,6 +824,59 @@ export type Database = {
           },
         ]
       }
+      organizations: {
+        Row: {
+          id: string
+          name: string
+          owner_user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          owner_user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          owner_user_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      org_memberships: {
+        Row: {
+          id: string
+          organization_id: string
+          user_id: string
+          role: 'org_admin' | 'org_viewer'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          user_id: string
+          role: 'org_admin' | 'org_viewer'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          user_id?: string
+          role?: 'org_admin' | 'org_viewer'
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_memberships_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facility_subscriptions: {
         Row: {
           created_at: string
