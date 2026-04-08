@@ -595,6 +595,8 @@ export type Database = {
           retention_policies: Json | null
           updated_at: string
           value: Json
+          calendar_feed_token: string | null
+          calendar_feed_enabled: boolean
         }
         Insert: {
           created_at?: string
@@ -606,6 +608,8 @@ export type Database = {
           retention_policies?: Json | null
           updated_at?: string
           value: Json
+          calendar_feed_token?: string | null
+          calendar_feed_enabled?: boolean
         }
         Update: {
           created_at?: string
@@ -617,6 +621,8 @@ export type Database = {
           retention_policies?: Json | null
           updated_at?: string
           value?: Json
+          calendar_feed_token?: string | null
+          calendar_feed_enabled?: boolean
         }
         Relationships: [
           {
