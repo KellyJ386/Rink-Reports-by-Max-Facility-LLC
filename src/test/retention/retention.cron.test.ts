@@ -39,7 +39,8 @@ function makeQueryBuilder() {
     eq: vi.fn(() => builder),
     is: vi.fn(() => builder),
     lt: vi.fn(() => builder),
-    maybeSingle: vi.fn(() =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    maybeSingle: vi.fn((): Promise<any> =>
       Promise.resolve({
         data: {
           retention_policies: {
