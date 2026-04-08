@@ -1,51 +1,56 @@
-# Phase D — Agent 1 Complete
+# Phase E — Agent 1 Complete: Device Ingest Infrastructure
 
 ## Branch
-`phase-d/pdf-exports`
+`phase-e/device-ingest`
 
 ## Worktree
-`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-a57082f7`
+`/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-a2f4ec01`
 
 ## Task Statuses
 
 | Task | Status | SHA |
 |------|--------|-----|
-| Task 1 — Shared PDF utilities (`src/server/pdf/utils.ts`) | DONE (pre-existing) | `f6bac6b` |
-| Task 2 — PDF generators for all 5 modules | DONE | `b106fd3` |
-| Task 3 — tRPC export router + index registration | DONE | `aaaf7ce` |
-| Task 4 — `usePdfExport` hook + Export PDF buttons (daily-reports + refrigeration) | DONE | `4c97642` |
-| Task 5 — Tests: `pdf/utils.test.ts` + `pdf/exports.router.test.ts` | DONE | `6a4787b` |
+| Task 1 — device_credentials + ingest_log migrations | DONE | `cde6f78` |
+| Task 2 — HMAC device auth + rate limiting | DONE | `513f137` |
+| Task 3 — Refrigeration controller ingest endpoint | DONE | `4edbcf4` |
+| Task 4 — Device management tRPC + admin UI | DONE | `fb50008` |
+| Task 5 — Tests: auth, rate limit, ingest endpoint | DONE | `98dcfa8` |
 
 ## Final SHA
-`6a4787b`
+`98dcfa8`
 
-## Files Created / Modified
+## Files Created
 
-### Created
-- `src/server/pdf/generators/dailyReport.ts`
-- `src/server/pdf/generators/iceOperations.ts`
-- `src/server/pdf/generators/refrigeration.ts`
-- `src/server/pdf/generators/airQuality.ts`
-- `src/server/pdf/generators/incidents.ts`
-- `src/server/trpc/routers/exports.ts`
-- `src/hooks/usePdfExport.ts`
-- `src/test/pdf/utils.test.ts`
-- `src/test/pdf/exports.router.test.ts`
+- `supabase/migrations/021_device_credentials.sql`
+- `supabase/migrations/022_ingest_log.sql`
+- `src/server/ingest/auth.ts`
+- `src/server/ingest/rateLimit.ts`
+- `src/server/ingest/log.ts`
+- `src/app/api/ingest/refrigeration/route.ts`
+- `src/server/trpc/routers/devices.ts`
+- `src/app/(dashboard)/admin/devices/page.tsx`
+- `src/test/ingest/auth.test.ts`
+- `src/test/ingest/rateLimit.test.ts`
+- `src/test/ingest/refrigerationIngest.test.ts`
 
-### Modified
-- `src/server/trpc/routers/index.ts` — registered `exports: exportsRouter`
-- `src/modules/daily-reports/components/RecentSubmissions.tsx` — Export PDF button
-- `src/modules/refrigeration/components/RecentRefrigerationReadings.tsx` — Export PDF button
+## Files Modified
+
+- `src/lib/database.types.ts` — added device_credentials + ingest_log rows
+- `.env.example` — added INGEST_SIGNING_SECRET
+- `package.json` — added bcrypt + @types/bcrypt; removed duplicate exceljs
+- `src/server/trpc/routers/index.ts` — registered devices router
+- `src/app/(dashboard)/admin/page.tsx` — added Devices section link
 
 ## Test Results
-180 tests passing across 26 files (up from 158).
-TypeScript: clean (0 errors).
+262 tests passing across 35 files (up from 245).
 
 ## Notes
-- `facility_id` is always taken from `ctx.facilityId` per CLAUDE.md Rule 1
-- All procedures are `protectedProcedure`
-- The `dailyReportPdf` procedure joins `daily_report_checklists` for tab names
-  and groups answers by checklist tab
-- Refrigeration procedure fetches compressor names for lookup and uses
-  the fixed `REFRIGERATION_FIELDS` catalog (no hardcoded strings)
-- Generator mocks in tests use `vi.mock` so no actual PDF is rendered in CI
+
+- HMAC uses SHA-256 for key derivation (deterministic), not bcrypt (non-deterministic).
+  bcrypt dep is present for future portability. Column named `hashed_secret` per spec.
+- In-memory rate limiter is single-lane only; TODO Upstash Redis for multi-lane.
+- `submitted_by` FK satisfied by looking up a facility admin user — TODO: add
+  `source: 'sensor'` column in a future migration to make this cleaner.
+- Upstash not in package.json; in-memory fallback used as specified.
+- All security rules: facility_id from device DB row only (CLAUDE.md Rule 1),
+  timing-safe HMAC compare, 300s replay window, Zod .strict() payloads.
