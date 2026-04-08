@@ -16,6 +16,7 @@ import { BillingConfigCard } from "@/app/(dashboard)/admin/_components/BillingCo
 import { ModuleConfigShell } from "@/app/(dashboard)/admin/_components/ModuleConfigShell";
 import { NotificationPrefsCard } from "@/app/(dashboard)/admin/_components/NotificationPrefsCard";
 import { RetentionPolicyCard } from "@/app/(dashboard)/admin/_components/RetentionPolicyCard";
+import { CalendarFeedCard } from "@/app/(dashboard)/admin/_components/CalendarFeedCard";
 
 /**
  * Admin Control Center.
@@ -111,6 +112,7 @@ export default async function AdminPage() {
       <BillingConfigCard />
       <NotificationPrefsCard />
       <RetentionPolicyCard />
+      <CalendarFeedCard />
       <ModuleConfigShell />
 
       {/* Phase E — Sensor Devices */}
