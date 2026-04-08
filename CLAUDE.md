@@ -151,6 +151,13 @@ src/
 - Recurring ICS feed import cron (3am daily) with conflict detection + dedup-persisted `scheduling_import_conflict` alerts
 - Calendar export: public ICS feed at `/api/calendar/[facilityId]?token=...` gated by `calendar_feed_token` + `calendar_feed_enabled`, admin UI for enable/regenerate/copy/subscribe
 
+### Phase G — Platform & GTM (complete)
+- Stripe billing: full webhook state machine (subscription created/updated/deleted, invoice payment_succeeded/failed, trial_will_end), `facility_config` plan columns, append-only `billing_events` audit, `billingProtectedProcedure` factory, `/billing` page, `BillingBanner` (trial/past_due/locked), checkout + customer portal routes, 14-day trial, module toggles, seat management
+- HubSpot CRM sync: one-way RinkReports → HubSpot, Company + Contact + Deal upsert, deal stage mapped from plan_status, fire-and-forget wired into Stripe webhook + new facility signup, super-admin manual resync procedure
+- Multi-facility roll-up: `organizations` + `org_memberships` tables + `get_user_org_ids()` helper, `TRPCContext.organizationIds`/`orgRoles`, `orgAdminProcedure`, `orgRouter` (`listFacilities`/`getRollupMetrics`/`getFacilityAlerts`), `/(org)` read-only route group (facilities grid, metrics dashboard, alerts view), super-admin org creation + invite UI
+- Marketing site: `/(marketing)` route group with homepage (hero + 8-module grid + ROI calculator), features page, pricing page (monthly/annual toggle + FAQ), demo request form + `/api/marketing/demo-request` (Zod → HubSpot + Resend confirmation email, fire-and-forget), SEO metadata, `sitemap.ts`, `robots.ts`
+- SOC2 hygiene: append-only `audit_log` table with RLS, `writeAuditLog` + `scrubSnapshot` (redacts passwords/tokens/secrets), `logAdminMutation` helper wired into 4 high-value admin mutations, audit log viewer card, `/api/admin/data-export` (JSON export of all facility data), `/api/admin/data-delete` (super-admin soft-delete with confirmation phrase, preserves `incidents` and `air_quality_readings` for compliance)
+
 ## Environment Variables Needed
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -158,15 +165,66 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_TRPC_URL
 
 ## Current Phase
-Phase E complete; Phase F (AI assists) + Phase G (Platform & GTM)
-ready. The platform now accepts signed device telemetry from
-refrigeration controllers, air quality sensors, and ice depth
-calipers; pulls daily weather from Open-Meteo; imports scheduling
-feeds from ICS, iSportsman, Maxgalaxy, and Active Network; and
-publishes a public ICS calendar feed per facility. Next work
-belongs in Phase F (AI assists) or Phase G (Platform & GTM).
+Phase G complete — all planned phases (A → E, G) shipped. RinkReports
+is now a full-stack platform: offline-first PWA, 9 operational
+modules, trends + anomaly detection + notifications, PDF/CSV/XLSX
+exports + regulatory report packs, HMAC-signed sensor ingest +
+weather + scheduling import/export, Stripe billing with dunning and
+module toggles, HubSpot CRM sync, multi-facility org roll-up,
+public marketing site, and SOC2-lite audit log + data export. The
+next work is polish, production deployment, and GTM execution —
+not new feature phases.
 
 ## CHANGELOG
+
+### 2026-04-08 — Phase G complete (Platform & GTM)
+5 specialist agents merged. Agent 1 (Sonnet) shipped the Stripe
+billing state machine: migration 027 added plan columns and
+`billing_events`, the webhook handler now maps all 6 subscription/
+invoice events with `stripe_event_id` idempotency, `planGuard.ts`
+implements the trial/past_due-grace/locked state machine,
+`billingProtectedProcedure(moduleKey)` factory exported for
+incremental adoption, `/(dashboard)/billing/page.tsx` plus
+`BillingBanner` wired into DashboardShell, checkout + portal routes
+extended, seat management surfaced in UserManagementCard. Agent 2
+(Haiku) shipped HubSpot one-way sync: `src/server/hubspot/sync.ts`
+upserts Company + Contact + Deal with deal stage mapped from
+plan_status (trial/active/past_due/locked/cancelled), fire-and-forget
+wired into 6 Stripe webhook events and new facility signup, plus a
+super-admin `resyncHubSpot` manual procedure. Agent 3 (Sonnet)
+shipped multi-facility roll-up: migration 028 added
+`organizations` + `org_memberships` + `facilities.organization_id`
+FK + `get_user_org_ids()` SECURITY DEFINER helper,
+`TRPCContext.organizationIds` + `orgRoles` populated in context,
+`orgAdminProcedure` derives `selectedOrgId` from ctx (no client
+input), `orgRouter` with `listFacilities`/`getRollupMetrics`/
+`getFacilityAlerts`, `/(org)` read-only route group (3 pages),
+super-admin `OrganizationCard` for org creation + invite. Agent 4
+(Sonnet) shipped the marketing site: `/(marketing)` route group
+with custom layout/nav/footer, homepage (hero + 8-module grid +
+ROI calculator client component + offline-first callout), features
+page with 8 alternating sections, pricing page with monthly/annual
+toggle + 6-question FAQ, demo request form + `/api/marketing/
+demo-request` API route (Zod → HubSpot contact + Resend confirm
+email, both fire-and-forget), `sitemap.ts` + `robots.ts` + SEO
+metadata. Agent 5 (Haiku) shipped SOC2 hygiene: migration 029
+added append-only `audit_log` table with RLS (no UPDATE/DELETE
+policies), `scrubSnapshot` recursively redacts
+password/secret/token/hashed_secret/calendar_feed_token keys,
+`logAdminMutation` wired into 4 high-value admin mutations
+(facility update, module toggle, role change, retention policy),
+`AuditLogCard` viewer with date/email filters + CSV export,
+`/api/admin/data-export` returns the full facility JSON blob,
+`/api/admin/data-delete` super-admin soft-delete gated by a
+`DELETE {facility.name}` confirmation phrase (preserves incidents
+and air_quality_readings as compliance). Two post-merge fix
+commits cleaned up duplicate database.types.ts blocks from the
+leaked Agent 3 multi-facility commit, the orgAdminProcedure input
+inheritance, the AuditLogCard's shadcn-style import paths,
+archived_at cast in data-delete, and rewrote 3 HubSpot tests as
+smoke checks using a `vi.hoisted` chainable mock helper. Tests:
+402 passing across 53 files; typecheck clean. See
+PHASE_G_COMPLETE.md for details.
 
 ### 2026-04-08 — Phase E complete (Sensors & Integrations)
 5 specialist agents merged. Agent 1 shipped HMAC-signed device
