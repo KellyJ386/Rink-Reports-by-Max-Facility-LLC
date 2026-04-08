@@ -457,6 +457,7 @@ export type Database = {
           id: string
           length_unit: string
           name: string
+          organization_id: string | null
           postal_code: string | null
           slug: string
           state: string | null
@@ -475,6 +476,7 @@ export type Database = {
           id?: string
           length_unit?: string
           name: string
+          organization_id?: string | null
           postal_code?: string | null
           slug: string
           state?: string | null
@@ -493,6 +495,7 @@ export type Database = {
           id?: string
           length_unit?: string
           name?: string
+          organization_id?: string | null
           postal_code?: string | null
           slug?: string
           state?: string | null
@@ -636,6 +639,59 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          id: string
+          name: string
+          owner_user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          owner_user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          owner_user_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      org_memberships: {
+        Row: {
+          id: string
+          organization_id: string
+          user_id: string
+          role: 'org_admin' | 'org_viewer'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          user_id: string
+          role: 'org_admin' | 'org_viewer'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          user_id?: string
+          role?: 'org_admin' | 'org_viewer'
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_memberships_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1557,6 +1613,8 @@ export type Database = {
         Returns: string
       }
       get_user_facility_id: { Args: never; Returns: string }
+      get_user_org_ids: { Args: never; Returns: string[] }
+      get_user_org_role: { Args: { p_org_id: string }; Returns: string | null }
       get_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
