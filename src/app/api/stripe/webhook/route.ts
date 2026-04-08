@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
+import * as Sentry from "@sentry/nextjs";
 
 import { getStripe } from "@/lib/stripe";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
 import { createOrUpdateContact } from "@/lib/hubspot";
+import { syncFacilityToHubSpot } from "@/server/hubspot/sync";
 
 /**
  * POST /api/stripe/webhook
@@ -173,6 +175,13 @@ export async function POST(req: Request) {
             stripe_subscription_id: subscriptionId,
           })
           .eq("facility_id", facilityId);
+
+        // Fire-and-forget HubSpot sync
+        void Promise.resolve().then(() =>
+          syncFacilityToHubSpot(facilityId).catch((err) =>
+            Sentry.captureException(err, { tags: { context: "hubspot-sync" } }),
+          ),
+        );
         break;
       }
 
@@ -208,6 +217,13 @@ export async function POST(req: Request) {
             enabled_modules: ALL_MODULES_ENABLED,
           })
           .eq("facility_id", facilityId);
+
+        // Fire-and-forget HubSpot sync
+        void Promise.resolve().then(() =>
+          syncFacilityToHubSpot(facilityId).catch((err) =>
+            Sentry.captureException(err, { tags: { context: "hubspot-sync" } }),
+          ),
+        );
         break;
       }
 
@@ -262,6 +278,13 @@ export async function POST(req: Request) {
           .from("facility_config")
           .update(updatePayload)
           .eq("facility_id", facilityId);
+
+        // Fire-and-forget HubSpot sync
+        void Promise.resolve().then(() =>
+          syncFacilityToHubSpot(facilityId).catch((err) =>
+            Sentry.captureException(err, { tags: { context: "hubspot-sync" } }),
+          ),
+        );
         break;
       }
 
@@ -318,6 +341,13 @@ export async function POST(req: Request) {
         } catch (err) {
           console.warn("[stripe webhook] hubspot sync skipped:", err);
         }
+
+        // Fire-and-forget HubSpot sync via new comprehensive endpoint
+        void Promise.resolve().then(() =>
+          syncFacilityToHubSpot(facilityId).catch((err) =>
+            Sentry.captureException(err, { tags: { context: "hubspot-sync" } }),
+          ),
+        );
         break;
       }
 
@@ -356,6 +386,13 @@ export async function POST(req: Request) {
             past_due_since: null,
           })
           .eq("facility_id", facilityId);
+
+        // Fire-and-forget HubSpot sync
+        void Promise.resolve().then(() =>
+          syncFacilityToHubSpot(facilityId).catch((err) =>
+            Sentry.captureException(err, { tags: { context: "hubspot-sync" } }),
+          ),
+        );
         break;
       }
 
@@ -400,6 +437,13 @@ export async function POST(req: Request) {
             })
             .eq("facility_id", facilityId);
         }
+
+        // Fire-and-forget HubSpot sync
+        void Promise.resolve().then(() =>
+          syncFacilityToHubSpot(facilityId).catch((err) =>
+            Sentry.captureException(err, { tags: { context: "hubspot-sync" } }),
+          ),
+        );
         break;
       }
 
