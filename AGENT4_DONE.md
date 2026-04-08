@@ -1,45 +1,56 @@
-# Phase D — Agent 4 (Retention Policy) — Completion Marker
+# Phase E — Agent 4 (Scheduling Import) — Completion Marker
 
-Branch: `phase-d/retention-policy`
-Worktree: `/home/user/Rink-Reports-by-Max-Facility-LLC/.claude/worktrees/agent-aef8e7a8`
+## Branch
+`phase-e/scheduling-import-finish`
 
 ## Task Statuses
 
-| Task | Description | Status | Commit SHA |
-|------|-------------|--------|------------|
-| 1 | Migrations 019 + 020 + RetentionPolicies type | DONE (pre-landed) | 3c32b1c |
-| 2 | Retention sweep cron + vercel.json | DONE | e3cc2cd |
-| 3 | Admin tRPC procedures + RetentionPolicyCard UI | DONE | 335d62f |
-| 4 | Tests (cron + admin validation) | DONE | ac522c4 |
+| Task | Status | Commit SHA |
+|------|--------|------------|
+| Task 1 — ICS parser + types | DONE (pre-existing on HEAD) | `401e769` |
+| Task 2 — Platform adapters (iSportsman, Maxgalaxy, Active Network) | DONE (pre-existing on HEAD) | `401e769` |
+| Task 3 — Staff matching + previewImport/commitImport tRPC | DONE | `89556fa` |
+| Task 3 — Import UI page (`/scheduling/import`) | DONE | `19beb15` |
+| Task 4 — Recurring ICS feed cron + migration + db types + vercel.json | DONE | `8ff1620` |
+| Task 5 — Tests (matchStaff, adapters, icsParser) | DONE | `b605b88` |
 
-## Deliverables
+## Commits (this session)
 
-### Migrations
-- `supabase/migrations/019_retention_policies.sql` — adds `retention_policies JSONB` to `facility_config`
-- `supabase/migrations/020_archived_at_columns.sql` — adds `archived_at TIMESTAMPTZ` to 4 data tables (NOT incidents or air_quality_readings)
+- `89556fa` feat(scheduling): import preview + commit tRPC procedures
+- `19beb15` feat(scheduling): import preview + commit UI and tRPC
+- `8ff1620` feat(scheduling): recurring ICS feed import cron
+- `b605b88` test: scheduling adapters, staff matching, ICS parser
 
-### TypeScript types
-- `src/lib/offline/types.ts` — `RetentionPolicies` type (pre-landed)
-- `src/lib/database.types.ts` — `facility_config` Row/Insert/Update updated with `retention_policies` column
+## Pre-existing commits (prior partial run on HEAD)
 
-### Cron job
-- `src/app/api/cron/retention-sweep/route.ts` — nightly 2am UTC, soft-delete + hard-delete after 30-day grace
-- `vercel.json` — retention-sweep entry added to `crons` array
+- `401e769` feat(scheduling): iSportsman, Maxgalaxy, ActiveNetwork adapters
+  (Also includes: icsParser.ts, types.ts, matchStaff.ts in src/server/scheduling/importers/)
 
-### Admin tRPC
-- `src/server/trpc/routers/admin.ts` — `getRetentionPolicies` + `updateRetentionPolicies` procedures appended
+## Files Created / Modified
 
-### Admin UI
-- `src/app/(dashboard)/admin/_components/RetentionPolicyCard.tsx` — 4 configurable fields (min 365), 2 compliance-locked rows
-- `src/app/(dashboard)/admin/page.tsx` — RetentionPolicyCard wired in
+### New files
+- `src/server/scheduling/importers/matchStaff.ts` (pre-existing)
+- `src/server/scheduling/importers/adapters/iSportsmanAdapter.ts` (pre-existing)
+- `src/server/scheduling/importers/adapters/maxgalaxyAdapter.ts` (pre-existing)
+- `src/server/scheduling/importers/adapters/activeNetworkAdapter.ts` (pre-existing)
+- `src/app/(dashboard)/scheduling/import/page.tsx`
+- `src/app/api/cron/scheduling-import/route.ts`
+- `supabase/migrations/026_scheduling_feed.sql`
+- `src/test/scheduling/matchStaff.test.ts`
+- `src/test/scheduling/adapters.test.ts`
+- `src/test/scheduling/icsParser.test.ts`
 
-### Tests
-- `src/test/retention/retention.cron.test.ts` — 9 tests
-- `src/test/retention/retention.admin.test.ts` — 12 tests
-- Total suite: 179 tests passing across 26 files; typecheck clean
+### Modified files
+- `src/server/trpc/routers/scheduling.ts` (added previewImport + commitImport)
+- `src/lib/database.types.ts` (added scheduling_feed_url + scheduling_feed_last_imported_at to facility_config)
+- `vercel.json` (added /api/cron/scheduling-import at 3am UTC)
 
-## Key Design Decisions
-- `incidents` and `air_quality_readings` excluded from `RETENTION_TABLES` in cron — never touched regardless of policy config
-- Admin can only set values >= 365 (Zod `min(365)`); compliance fields are `z.null()` — cannot be set to a number
-- Soft delete sets `archived_at = NOW()`; hard delete purges when `archived_at < NOW() - 30 days`
-- Bearer token auth via `CRON_SECRET` env var (matches Phase C anomaly-scan pattern)
+## Test Results
+328 tests passing across 43 files (all green).
+
+## Notes
+- `papaparse` + `@types/papaparse` were already present in package.json — no changes needed.
+- The previewImport procedure fetches the roster with `.neq("role", "viewer")` per CLAUDE.md Rule 1.
+- The cron auto-commits only shifts with confidence >= 0.9 AND no overlap; conflicts become alert rows.
+- `Promise.allSettled` used per-facility in the cron so one failing facility doesn't block the rest.
+- The import UI is a lean 3-step flow: format/content → review table with staff match confidence → confirm.

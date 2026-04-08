@@ -14,6 +14,91 @@ export type Database = {
   }
   public: {
     Tables: {
+      device_credentials: {
+        Row: {
+          id: string
+          facility_id: string
+          device_id: string
+          device_type: 'refrigeration_controller' | 'air_quality_sensor' | 'ice_depth_sensor'
+          label: string
+          hashed_secret: string
+          last_seen_at: string | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          facility_id: string
+          device_id: string
+          device_type: 'refrigeration_controller' | 'air_quality_sensor' | 'ice_depth_sensor'
+          label: string
+          hashed_secret: string
+          last_seen_at?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          facility_id?: string
+          device_id?: string
+          device_type?: 'refrigeration_controller' | 'air_quality_sensor' | 'ice_depth_sensor'
+          label?: string
+          hashed_secret?: string
+          last_seen_at?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_credentials_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ingest_log: {
+        Row: {
+          id: string
+          device_id: string
+          facility_id: string
+          endpoint: string
+          payload_hash: string
+          status: 'accepted' | 'rejected' | 'duplicate'
+          rejection_reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          device_id: string
+          facility_id: string
+          endpoint: string
+          payload_hash: string
+          status: 'accepted' | 'rejected' | 'duplicate'
+          rejection_reason?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          device_id?: string
+          facility_id?: string
+          endpoint?: string
+          payload_hash?: string
+          status?: 'accepted' | 'rejected' | 'duplicate'
+          rejection_reason?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingest_log_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alerts: {
         Row: {
           id: string
@@ -307,6 +392,59 @@ export type Database = {
           },
         ]
       }
+      daily_weather: {
+        Row: {
+          avg_temp_f: number | null
+          conditions: string | null
+          created_at: string
+          facility_id: string
+          high_temp_f: number | null
+          id: string
+          low_temp_f: number | null
+          precipitation_in: number | null
+          raw_response: Json | null
+          snow_in: number | null
+          weather_date: string
+          wind_mph: number | null
+        }
+        Insert: {
+          avg_temp_f?: number | null
+          conditions?: string | null
+          created_at?: string
+          facility_id: string
+          high_temp_f?: number | null
+          id?: string
+          low_temp_f?: number | null
+          precipitation_in?: number | null
+          raw_response?: Json | null
+          snow_in?: number | null
+          weather_date: string
+          wind_mph?: number | null
+        }
+        Update: {
+          avg_temp_f?: number | null
+          conditions?: string | null
+          created_at?: string
+          facility_id?: string
+          high_temp_f?: number | null
+          id?: string
+          low_temp_f?: number | null
+          precipitation_in?: number | null
+          raw_response?: Json | null
+          snow_in?: number | null
+          weather_date?: string
+          wind_mph?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_weather_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facilities: {
         Row: {
           address_line1: string | null
@@ -451,28 +589,46 @@ export type Database = {
           created_at: string
           facility_id: string
           key: string
+          latitude: number | null
+          longitude: number | null
           module: string
           retention_policies: Json | null
           updated_at: string
           value: Json
+          calendar_feed_token: string | null
+          calendar_feed_enabled: boolean
+          scheduling_feed_url: string | null
+          scheduling_feed_last_imported_at: string | null
         }
         Insert: {
           created_at?: string
           facility_id: string
           key: string
+          latitude?: number | null
+          longitude?: number | null
           module: string
           retention_policies?: Json | null
           updated_at?: string
           value: Json
+          calendar_feed_token?: string | null
+          calendar_feed_enabled?: boolean
+          scheduling_feed_url?: string | null
+          scheduling_feed_last_imported_at?: string | null
         }
         Update: {
           created_at?: string
           facility_id?: string
           key?: string
+          latitude?: number | null
+          longitude?: number | null
           module?: string
           retention_policies?: Json | null
           updated_at?: string
           value?: Json
+          calendar_feed_token?: string | null
+          calendar_feed_enabled?: boolean
+          scheduling_feed_url?: string | null
+          scheduling_feed_last_imported_at?: string | null
         }
         Relationships: [
           {

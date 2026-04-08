@@ -140,11 +140,16 @@ src/
 - Retention policies per module in facility_config (min 365 days, compliance fields locked)
 - Nightly retention sweep cron at /api/cron/retention-sweep (2am UTC, soft delete + 30-day grace)
 
-### Phase E — Sensors & Integrations (next)
-- Refrigeration controller ingest (Modbus/BACnet) via on-site bridge
-- Ammonia / CO / NO₂ sensor auto-ingest
-- Weather station pull (NOAA / OpenWeather)
-- Scheduling import adapters (ICS, Maxgalaxy, Active Network)
+### Phase E — Sensors & Integrations (complete)
+- HMAC-signed device ingest infrastructure (`device_credentials` + `ingest_log` tables, in-memory rate limit, replay protection)
+- Refrigeration controller ingest endpoint (`/api/ingest/refrigeration`) + device management admin UI
+- Air quality sensor ingest with server-side tier compute + auto alert creation for tier ≥ 3
+- Ice depth sensor ingest with session upsert + critical thin-spot alerting
+- `HttpCaliperAdapter` for remote caliper readings via Web Crypto HMAC
+- Weather: `daily_weather` table + Open-Meteo service + Zippopotam fallback + 6am cron + `weather.getForDate` tRPC procedure + surfaces in Daily Reports and Incidents
+- Scheduling import: ICS parser (recurrence + VTIMEZONE), iSportsman/Maxgalaxy/Active Network adapters, `matchStaff` (Levenshtein + email exact), `previewImport`/`commitImport` tRPC + 3-step UI at `/(dashboard)/scheduling/import`
+- Recurring ICS feed import cron (3am daily) with conflict detection + dedup-persisted `scheduling_import_conflict` alerts
+- Calendar export: public ICS feed at `/api/calendar/[facilityId]?token=...` gated by `calendar_feed_token` + `calendar_feed_enabled`, admin UI for enable/regenerate/copy/subscribe
 
 ## Environment Variables Needed
 NEXT_PUBLIC_SUPABASE_URL
@@ -153,16 +158,46 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_TRPC_URL
 
 ## Current Phase
-Phase D complete; Phase E ready. The platform now ships
-branded per-module PDF/CSV/XLSX exports, four regulatory
-report packs (OSHA 300/300A, EPA RMP, USA Hockey rink safety,
-monthly board pack), a shared ExportMenu component, and a
-nightly retention sweep cron with per-facility soft-delete
-policies that permanently exclude incidents and air quality
-escalations from deletion. Next work belongs in Phase E
-(Sensors & Integrations).
+Phase E complete; Phase F (AI assists) + Phase G (Platform & GTM)
+ready. The platform now accepts signed device telemetry from
+refrigeration controllers, air quality sensors, and ice depth
+calipers; pulls daily weather from Open-Meteo; imports scheduling
+feeds from ICS, iSportsman, Maxgalaxy, and Active Network; and
+publishes a public ICS calendar feed per facility. Next work
+belongs in Phase F (AI assists) or Phase G (Platform & GTM).
 
 ## CHANGELOG
+
+### 2026-04-08 — Phase E complete (Sensors & Integrations)
+5 specialist agents merged. Agent 1 shipped HMAC-signed device
+ingest infrastructure: `device_credentials` + `ingest_log` tables,
+`verifyDeviceRequest` (timing-safe HMAC-SHA256 over
+deviceId.timestamp.sha256(body) with 5-minute replay window),
+in-memory rate limiter, 60s payload-hash dedup, and the
+refrigeration controller ingest endpoint + admin device management
+UI/tRPC. Agent 2 extended the pattern to air quality and ice depth
+sensors with automatic tier/depth alert creation and shipped an
+HttpCaliperAdapter that mirrors the Web Bluetooth interface using
+Web Crypto HMAC. Agent 3 delivered weather: `daily_weather` table
+with RLS, Open-Meteo service + Zippopotam zip-code fallback, 6am
+daily cron, `weather.getForDate` tRPC procedure, and weather
+summary cards surfaced in Daily Reports and Incident forms. Agent 4
+(resume after rate-limit cutoff) shipped ICS parsing with
+recurrence + VTIMEZONE support, iSportsman/Maxgalaxy/Active Network
+adapters, Levenshtein-based `matchStaff`, `previewImport` +
+`commitImport` tRPC procedures, a 3-step import UI, and a 3am
+recurring-feed import cron that auto-commits high-confidence shifts
+and deduplicates conflicts into the alerts table. Agent 5 delivered
+the calendar export: `calendar_feed_token` + `calendar_feed_enabled`
+in facility_config, public ICS feed at `/api/calendar/[facilityId]`
+(404s for missing/wrong/disabled tokens), ical-generator integration,
+and an admin card for enable/regenerate/copy/webcal-subscribe. Two
+post-merge fix commits cleaned up ical.js v2 typing, user_profiles
+email column assumptions (email lives in auth.users, not profiles),
+noUncheckedIndexedAccess violations, and a missing `matchStaff.ts`
+file that Agent 4 referenced but never committed. Tests: 328 passing
+across 43 files; typecheck clean. See PHASE_E_COMPLETE.md for
+details.
 
 ### 2026-04-08 — Phase D complete (Compliance & Exports)
 4 specialist agents merged. Agent 1 shipped a jsPDF utility

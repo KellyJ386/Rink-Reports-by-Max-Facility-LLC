@@ -6,6 +6,7 @@ import { trpc } from "@/lib/trpc";
 
 import { ChecklistForm } from "@/modules/daily-reports/components/ChecklistForm";
 import { RecentSubmissions } from "@/modules/daily-reports/components/RecentSubmissions";
+import { WeatherCard } from "@/modules/daily-reports/components/WeatherCard";
 
 /**
  * Top-level client island for /daily-reports.
@@ -56,6 +57,8 @@ export function DailyReportsClient() {
 
   return (
     <div className="flex flex-col gap-6">
+      <WeatherCard />
+
       <nav
         aria-label="Daily Report tabs"
         className="flex flex-wrap gap-2 border-b border-grey/30 pb-2"

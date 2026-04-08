@@ -16,6 +16,7 @@ import { BillingConfigCard } from "@/app/(dashboard)/admin/_components/BillingCo
 import { ModuleConfigShell } from "@/app/(dashboard)/admin/_components/ModuleConfigShell";
 import { NotificationPrefsCard } from "@/app/(dashboard)/admin/_components/NotificationPrefsCard";
 import { RetentionPolicyCard } from "@/app/(dashboard)/admin/_components/RetentionPolicyCard";
+import { CalendarFeedCard } from "@/app/(dashboard)/admin/_components/CalendarFeedCard";
 
 /**
  * Admin Control Center.
@@ -111,7 +112,25 @@ export default async function AdminPage() {
       <BillingConfigCard />
       <NotificationPrefsCard />
       <RetentionPolicyCard />
+      <CalendarFeedCard />
       <ModuleConfigShell />
+
+      {/* Phase E — Sensor Devices */}
+      <section className="rounded-lg border border-[#A5ACAF]/30 bg-[#001122]/40 p-6">
+        <h2 className="text-xl font-semibold text-white">Devices</h2>
+        <p className="mt-1 text-sm text-[#A5ACAF]">
+          Register and manage IoT devices that push sensor readings directly
+          into RinkReports via HMAC-authenticated ingest endpoints.
+        </p>
+        <div className="mt-4">
+          <Link
+            href="/admin/devices"
+            className="inline-flex items-center gap-1 rounded-md bg-[#003B6F] px-4 py-2 text-sm font-medium text-white hover:bg-[#003B6F]/90"
+          >
+            Manage Devices →
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }
