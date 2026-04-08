@@ -152,6 +152,69 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          id: string
+          facility_id: string | null
+          user_id: string
+          user_email: string
+          user_role: string
+          action: string
+          resource_type: string
+          resource_id: string | null
+          before_snapshot: Json
+          after_snapshot: Json
+          ip_address: string | null
+          user_agent: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          facility_id?: string | null
+          user_id: string
+          user_email: string
+          user_role: string
+          action: string
+          resource_type: string
+          resource_id?: string | null
+          before_snapshot?: Json
+          after_snapshot?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          facility_id?: string | null
+          user_id?: string
+          user_email?: string
+          user_role?: string
+          action?: string
+          resource_type?: string
+          resource_id?: string | null
+          before_snapshot?: Json
+          after_snapshot?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_notification_prefs: {
         Row: {
           id: string
