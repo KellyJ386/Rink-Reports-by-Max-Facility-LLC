@@ -16,6 +16,7 @@ import { billingRouter } from "@/server/trpc/routers/billing";
 import { alertsRouter } from "@/server/trpc/routers/alerts";
 import { notificationsRouter } from "@/server/trpc/routers/notifications";
 import { exportsRouter } from "@/server/trpc/routers/exports";
+import { devicesRouter } from "@/server/trpc/routers/devices";
 
 export const appRouter = router({
   admin: adminRouter,
@@ -33,6 +34,7 @@ export const appRouter = router({
   alerts: alertsRouter,
   notifications: notificationsRouter,
   exports: exportsRouter,
+  devices: devicesRouter,
 });
 
 export type AppRouter = typeof appRouter;
