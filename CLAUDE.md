@@ -131,11 +131,20 @@ src/
 - user_notification_prefs + push_subscriptions tables + admin UI card
 - viewer role: route group, role guard utility, viewerProcedure middleware, proxy redirect
 
-### Phase D — Compliance & Exports (next)
-- Branded PDF exports per module
-- CSV / XLSX exports
-- Predefined regulatory report packs (OSHA 300/300A, EPA RMP, USA Hockey, monthly board pack)
-- Retention policy + nightly archive sweep
+### Phase D — Compliance & Exports (complete)
+- Branded PDF exports per module (jsPDF) with shared header/footer/signature utilities
+- CSV + XLSX exports per module (exceljs)
+- ExportMenu dropdown component
+- Regulatory report packs: OSHA 300/300A injury log, EPA RMP refrigerant log, USA Hockey rink safety, monthly board pack
+- Operational Reports page at /(dashboard)/reports
+- Retention policies per module in facility_config (min 365 days, compliance fields locked)
+- Nightly retention sweep cron at /api/cron/retention-sweep (2am UTC, soft delete + 30-day grace)
+
+### Phase E — Sensors & Integrations (next)
+- Refrigeration controller ingest (Modbus/BACnet) via on-site bridge
+- Ammonia / CO / NO₂ sensor auto-ingest
+- Weather station pull (NOAA / OpenWeather)
+- Scheduling import adapters (ICS, Maxgalaxy, Active Network)
 
 ## Environment Variables Needed
 NEXT_PUBLIC_SUPABASE_URL
@@ -144,14 +153,39 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_TRPC_URL
 
 ## Current Phase
-Phase C complete; Phase D ready. The platform now ships an
-operational insights dashboard, server-side anomaly detection
-with hourly Vercel cron, multi-channel notification fan-out
-(email + SMS + push), an alerts table + tRPC router, and a
-read-only viewer role with its own route group. Next work
-belongs in Phase D (Compliance & Exports).
+Phase D complete; Phase E ready. The platform now ships
+branded per-module PDF/CSV/XLSX exports, four regulatory
+report packs (OSHA 300/300A, EPA RMP, USA Hockey rink safety,
+monthly board pack), a shared ExportMenu component, and a
+nightly retention sweep cron with per-facility soft-delete
+policies that permanently exclude incidents and air quality
+escalations from deletion. Next work belongs in Phase E
+(Sensors & Integrations).
 
 ## CHANGELOG
+
+### 2026-04-08 — Phase D complete (Compliance & Exports)
+4 specialist agents merged. Agent 1 shipped a jsPDF utility
+module (header, footer, signature, section-title, page-overflow
+helpers) plus 5 per-module PDF generators (daily reports, ice
+operations, refrigeration, air quality, incidents), a tRPC
+exports router with 5 `*Pdf` mutations, and a `usePdfExport`
+client hook wired to daily-reports and refrigeration history.
+Agent 2 shipped native CSV + exceljs XLSX utilities, 5
+per-module row formatters, 10 `*Csv`/`*Xlsx` mutations, and an
+ExportMenu dropdown. Agent 3 shipped 4 regulatory report pack
+generators (OSHA 300/300A, EPA RMP refrigerant log, USA Hockey
+rink safety, monthly board pack with ASCII bar approximation),
+4 corresponding tRPC mutations, and a Report Packs page at
+/(dashboard)/reports. Agent 4 added `retention_policies` JSONB
+to `facility_config` (default 365–1825 days, compliance fields
+locked to null), `archived_at` columns on 4 module tables (not
+incidents or air_quality_readings), a nightly
+/api/cron/retention-sweep with 30-day grace period before hard
+delete, and an admin UI card. Both Phase D resume cycles were
+needed after background agent processes were terminated across
+session boundaries. Tests: 245 passing across 32 files;
+typecheck clean. See PHASE_D_COMPLETE.md for details.
 
 ### 2026-04-07 — Phase C complete (Insight Layer)
 4 specialist agents merged. analyticsRouter shipped 5 trend
