@@ -10,6 +10,10 @@ import { getStripe } from "@/lib/stripe";
  * facility's admin can update payment methods, change plans, or
  * cancel from Stripe's hosted UI.
  *
+ * Phase G update: looks up stripe_customer_id from facility_config
+ * (the Phase G source of truth) with fallback to facility_subscriptions
+ * (legacy Phase 6 table) for backwards compatibility.
+ *
  * Requires admin role and an existing stripe_customer_id (the
  * checkout flow lazily creates it on first subscribe).
  */
@@ -40,12 +44,27 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data: sub } = await supabase
-    .from("facility_subscriptions")
+  // Phase G: look up stripe_customer_id from facility_config first
+  const { data: configRow } = await supabase
+    .from("facility_config")
     .select("stripe_customer_id")
     .eq("facility_id", profile.facility_id)
+    .limit(1)
     .maybeSingle();
-  if (!sub?.stripe_customer_id) {
+
+  let customerId = configRow?.stripe_customer_id ?? null;
+
+  // Legacy fallback: facility_subscriptions table
+  if (!customerId) {
+    const { data: sub } = await supabase
+      .from("facility_subscriptions")
+      .select("stripe_customer_id")
+      .eq("facility_id", profile.facility_id)
+      .maybeSingle();
+    customerId = sub?.stripe_customer_id ?? null;
+  }
+
+  if (!customerId) {
     return NextResponse.json(
       { error: "No Stripe customer for this facility yet — start a checkout first." },
       { status: 400 },
@@ -57,8 +76,8 @@ export async function POST(req: Request) {
 
   const stripe = getStripe();
   const session = await stripe.billingPortal.sessions.create({
-    customer: sub.stripe_customer_id,
-    return_url: `${origin}/admin`,
+    customer: customerId,
+    return_url: `${origin}/billing`,
   });
 
   return NextResponse.json({ url: session.url });

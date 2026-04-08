@@ -2,9 +2,11 @@ import "server-only";
 
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 import { authedProcedure, router } from "@/server/trpc/trpc";
 import { createOrUpdateContact } from "@/lib/hubspot";
+import { syncFacilityToHubSpot } from "@/server/hubspot/sync";
 
 /**
  * Onboarding router. Mounted at `onboarding`. The single mutation
@@ -79,7 +81,7 @@ export const onboardingRouter = router({
 
       const facilityId = data as unknown as string;
 
-      // Best-effort HubSpot Contact sync. Non-blocking — if HubSpot
+      // Best-effort HubSpot Contact sync (legacy). Non-blocking — if HubSpot
       // is unreachable or HUBSPOT_ACCESS_TOKEN isn't set, the call
       // is a silent no-op so onboarding still succeeds.
       const email = ctx.user.email ?? "";
@@ -93,6 +95,13 @@ export const onboardingRouter = router({
           subscription_status: "trialing",
         });
       }
+
+      // Fire-and-forget comprehensive HubSpot sync (company, contact, deal)
+      void Promise.resolve().then(() =>
+        syncFacilityToHubSpot(facilityId).catch((err) =>
+          Sentry.captureException(err, { tags: { context: "hubspot-sync" } }),
+        ),
+      );
 
       return { facility_id: facilityId };
     }),

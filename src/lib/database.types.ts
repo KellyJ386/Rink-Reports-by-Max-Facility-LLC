@@ -152,6 +152,69 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          id: string
+          facility_id: string | null
+          user_id: string
+          user_email: string
+          user_role: string
+          action: string
+          resource_type: string
+          resource_id: string | null
+          before_snapshot: Json
+          after_snapshot: Json
+          ip_address: string | null
+          user_agent: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          facility_id?: string | null
+          user_id: string
+          user_email: string
+          user_role: string
+          action: string
+          resource_type: string
+          resource_id?: string | null
+          before_snapshot?: Json
+          after_snapshot?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          facility_id?: string | null
+          user_id?: string
+          user_email?: string
+          user_role?: string
+          action?: string
+          resource_type?: string
+          resource_id?: string | null
+          before_snapshot?: Json
+          after_snapshot?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_notification_prefs: {
         Row: {
           id: string
@@ -445,6 +508,59 @@ export type Database = {
           },
         ]
       }
+      organizations: {
+        Row: {
+          id: string
+          name: string
+          owner_user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          owner_user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          owner_user_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      org_memberships: {
+        Row: {
+          id: string
+          organization_id: string
+          user_id: string
+          role: 'org_admin' | 'org_viewer'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          user_id: string
+          role: 'org_admin' | 'org_viewer'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          user_id?: string
+          role?: 'org_admin' | 'org_viewer'
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_memberships_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facilities: {
         Row: {
           address_line1: string | null
@@ -457,6 +573,7 @@ export type Database = {
           id: string
           length_unit: string
           name: string
+          organization_id: string | null
           postal_code: string | null
           slug: string
           state: string | null
@@ -475,6 +592,7 @@ export type Database = {
           id?: string
           length_unit?: string
           name: string
+          organization_id?: string | null
           postal_code?: string | null
           slug: string
           state?: string | null
@@ -493,6 +611,7 @@ export type Database = {
           id?: string
           length_unit?: string
           name?: string
+          organization_id?: string | null
           postal_code?: string | null
           slug?: string
           state?: string | null
@@ -584,6 +703,41 @@ export type Database = {
           },
         ]
       }
+      billing_events: {
+        Row: {
+          id: string
+          facility_id: string
+          stripe_event_id: string
+          event_type: string
+          payload: Json
+          processed_at: string
+        }
+        Insert: {
+          id?: string
+          facility_id: string
+          stripe_event_id: string
+          event_type: string
+          payload: Json
+          processed_at?: string
+        }
+        Update: {
+          id?: string
+          facility_id?: string
+          stripe_event_id?: string
+          event_type?: string
+          payload?: Json
+          processed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facility_config: {
         Row: {
           created_at: string
@@ -599,6 +753,16 @@ export type Database = {
           calendar_feed_enabled: boolean
           scheduling_feed_url: string | null
           scheduling_feed_last_imported_at: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          plan_status: 'trial' | 'active' | 'past_due' | 'locked' | 'cancelled'
+          trial_ends_at: string | null
+          plan_tier: string
+          enabled_modules: Json
+          billing_email: string | null
+          seat_count: number
+          max_seats: number
+          past_due_since: string | null
         }
         Insert: {
           created_at?: string
@@ -614,6 +778,16 @@ export type Database = {
           calendar_feed_enabled?: boolean
           scheduling_feed_url?: string | null
           scheduling_feed_last_imported_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          plan_status?: 'trial' | 'active' | 'past_due' | 'locked' | 'cancelled'
+          trial_ends_at?: string | null
+          plan_tier?: string
+          enabled_modules?: Json
+          billing_email?: string | null
+          seat_count?: number
+          max_seats?: number
+          past_due_since?: string | null
         }
         Update: {
           created_at?: string
@@ -629,6 +803,16 @@ export type Database = {
           calendar_feed_enabled?: boolean
           scheduling_feed_url?: string | null
           scheduling_feed_last_imported_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          plan_status?: 'trial' | 'active' | 'past_due' | 'locked' | 'cancelled'
+          trial_ends_at?: string | null
+          plan_tier?: string
+          enabled_modules?: Json
+          billing_email?: string | null
+          seat_count?: number
+          max_seats?: number
+          past_due_since?: string | null
         }
         Relationships: [
           {
@@ -1557,6 +1741,8 @@ export type Database = {
         Returns: string
       }
       get_user_facility_id: { Args: never; Returns: string }
+      get_user_org_ids: { Args: never; Returns: string[] }
+      get_user_org_role: { Args: { p_org_id: string }; Returns: string | null }
       get_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]

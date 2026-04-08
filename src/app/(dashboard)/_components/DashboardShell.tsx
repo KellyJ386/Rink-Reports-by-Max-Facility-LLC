@@ -14,6 +14,7 @@ import {
 } from "@/components/layout";
 import { ToastHost } from "@/components/ui/ToastHost";
 import { InstallPrompt } from "@/components/ui/InstallPrompt";
+import { BillingBanner } from "@/components/ui/BillingBanner";
 
 export type DashboardShellProps = {
   facilityName: string;
@@ -56,6 +57,7 @@ export function DashboardShell({
   return (
     <SyncProvider>
     <div className="flex min-h-full flex-1 flex-col">
+      <BillingBanner />
       <OfflineBanner />
       <Header
         facilityName={facilityName}

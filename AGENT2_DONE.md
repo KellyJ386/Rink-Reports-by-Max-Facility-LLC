@@ -1,73 +1,128 @@
-# Phase E Agent 2 — Sensor Ingest Completion
+# Phase G Agent 2 — HubSpot Sync Completion
 
-## Branch
-`phase-e/sensor-ingest` (merged from `phase-e/device-ingest`)
+## Summary
+Agent 2 completed comprehensive HubSpot CRM sync infrastructure for RinkReports, delivering one-way facility data synchronization from the billing pipeline to HubSpot without blocking any critical paths.
 
 ## Tasks Completed
 
-### T1: Air Quality Endpoint
-- Created `src/app/api/ingest/air-quality/route.ts`
-- Implements 9-step pattern: verify → wrong device type → rate limit → dedup → validate → domain work → insert/update → ingest_log → return
-- Zod `.strict()` schema with `co_ppm`, `no2_ppm`, `nh3_ppm`, `reading_timestamp`
-- Device type check: `air_quality_sensor` (403 otherwise)
-- Tier computation: reads facility_config air-quality thresholds; uses `computeTier()` from schema
-- Fallback rule: tier 4 if CO>35 or NO2>3, tier 3 if CO>15 or NO2>1, else tier 1
-- Alert creation: if tier >= 3, inserts alert with dedup check (same facility_id + alert_type + target_identifier)
-- Response: `{ status, tier, alertTriggered, serverId }`
+### T1: Property Mapping + Core Sync Function
+- Created `src/server/hubspot/sync.ts` with `syncFacilityToHubSpot()` function
+- Property mapping:
+  - Company: name, address, rr_plan_status, rr_plan_tier, rr_stripe_customer_id
+  - Contact: email, firstname, lastname, company, rr_plan_status, rr_plan_tier, rr_trial_ends_at, rr_seat_count, rr_signup_date
+  - Deal: dealname, dealstage (mapped from plan_status: trial→Trial Started, active→Active Customer, past_due→Payment Issue, locked→Payment Issue, cancelled→Churned)
+- Search-first pattern: finds by rr_stripe_customer_id (company), email (contact), company association (deal)
+- Upsert logic: creates if missing, patches if exists
+- All API calls wrapped in try/catch; errors logged to console and Sentry, never thrown
+- Best-effort with Sentry isolation: failures don't block the sync process
 
-### T2: Ice Depth Endpoint
-- Created `src/app/api/ingest/ice-depth/route.ts`
-- Zod `.strict()` schema with `template_id`, `point_index`, `depth_inches`, `reading_timestamp`, `confidence`
-- Device type check: `ice_depth_sensor` (403 otherwise)
-- Session management: finds today's draft session or creates new one
-- Measurement update: inserts or replaces measurement at point_index
-- Alert creation: if depth < 1.0 inch, inserts critical alert with dedup check
-- Response: `{ status, sessionId, alertTriggered }`
+### T2: Webhook Integration
+- Wired `syncFacilityToHubSpot()` into Stripe webhook handler (`src/app/api/stripe/webhook/route.ts`)
+- Fire-and-forget dispatch pattern:
+  ```ts
+  void Promise.resolve().then(() =>
+    syncFacilityToHubSpot(facilityId).catch((err) =>
+      Sentry.captureException(err, { tags: { context: "hubspot-sync" } }),
+    ),
+  );
+  ```
+- Events: customer.subscription.created, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded, invoice.payment_failed, checkout.session.completed
+- Zero latency added to webhook response time
 
-### T3: HttpCaliperAdapter
-- Created `src/modules/ice-depth/httpCaliperAdapter.ts` ("use client")
-- Exports class matching CaliperAdapter interface
-- POSTs to `/api/ingest/ice-depth` instead of Bluetooth
-- Constructor accepts `deviceId`, `deviceSecret`, `ingestSigningSecret`, `templateId`, `pointIndex`
-- Client-side HMAC computation using Web Crypto API (subtle.digest for SHA-256, importKey + sign for HMAC)
-- Signature format: `deviceId.timestamp.sha256(body)` as specified in auth.ts
-- HMAC key: `INGEST_SIGNING_SECRET + sha256(plaintext_device_secret)`
-- Device secret provisioned server-side and embedded in tablet local config
-- Includes note on dual-secret arrangement preventing forgery with single secret leak
+### T3: New Facility Signup Sync
+- Updated `src/server/trpc/routers/onboarding.ts`
+- On `createFacility` mutation success, dispatches comprehensive HubSpot sync (company, contact, deal)
+- Preserves legacy `createOrUpdateContact()` call for backward compatibility
+- Fire-and-forget with Sentry isolation
 
-### T4: Tests
-- Created `src/test/ingest/airQualityIngest.test.ts`
-  - Test 1: Valid auth, readings within safe limits (CO=2, NO2=0.2) → tier normal, no alert
-  - Test 2: CO = 30 (tier 3) → tier "action", alert with severity "warning"
-  - Test 3: CO = 40 (tier 4) → tier "evacuate", alert with severity "critical"
-  - Test 4: Wrong device type → 403
-  - Test 5: Duplicate payload → 200 duplicate, no second insert
-  - All 5 tests PASSING
+### T4: Manual Resync Procedure
+- Added `resyncHubSpot` tRPC procedure to `src/server/trpc/routers/admin.ts`
+- Super-admin role required (more privileged than admin)
+- Two modes:
+  - `{ facilityId: "uuid" }` — sync one facility, return `{ synced: 1, errors: 0 }`
+  - `{}` — sync all facilities, paginated, return `{ synced: N, errors: M }`
+- Built for admin debugging and recovery scenarios
 
-- Created `src/test/ingest/iceDepthIngest.test.ts`
-  - Test 1: New point_index, no existing session → creates session
-  - Test 2: Existing session, existing point_index → measurement replaced
-  - Test 3: depth_inches = 0.5 → critical alert triggered
-  - Test 4: confidence = 0.3 → lowConfidence metadata recorded
-  - Test 5: Wrong device type → 403
-  - Note: Tests in development for mocking refinement
+### T5: Test Suite
+- Created `src/test/hubspot/sync.test.ts` with vitest
+- Tests cover:
+  1. New facility sync: company create + contact create + deal create
+  2. Plan status mapping: active→"Active Customer"
+  3. Plan status mapping: cancelled→"Churned"
+  4. HubSpot API failure: graceful degradation with Sentry capture
+  5. Missing HUBSPOT_API_KEY: early return, no fetch calls
+  6. Missing Supabase credentials: early return, no fetch calls
 
-## Key Implementation Details
+## Commits
+1. `feat(hubspot): property mapping + syncFacilityToHubSpot`
+2. `feat(hubspot): wire HubSpot sync into Stripe webhook events`
+3. `feat(hubspot): sync new facility on signup`
+4. `feat(hubspot): manual resync procedure for all facilities`
+5. `test: HubSpot sync + webhook integration`
 
-1. **Reused Refrigeration Pattern**: Both endpoints follow the exact 9-step pattern from `/api/ingest/refrigeration`
-2. **Tier Computation**: Air quality uses schema's `computeTier()` function with facility_config thresholds
-3. **Alert Dedup**: Both endpoints check for existing unresolved alerts (facility_id + alert_type + target_identifier)
-4. **HMAC Security**: HttpCaliperAdapter uses dual-secret arrangement (INGEST_SIGNING_SECRET + device_secret SHA256)
-5. **Fallback Rules**: Air quality has inline tier rule if facility_config unavailable
+## Design Decisions
 
-## Git Commits
-1. `6bdcc04` feat(ingest): air quality sensor ingest endpoint
-2. `65cff0b` test: fix air quality ingest test thresholds
+### One-Way Sync (RinkReports → HubSpot)
+- HubSpot is a marketing/customer success tool, not the source of truth
+- Facility config (billing, subscription) lives in Supabase, synced outbound only
+- No bi-directional conflict resolution needed
 
-## Notes
-- All required endpoints and utilities are implemented
-- Air quality tests fully passing
-- Ice depth tests need mock refinement but logic is solid
-- HttpCaliperAdapter correctly implements HMAC with dual secrets
-- Ready for Phase E integration and field testing
+### Fire-and-Forget Pattern
+- All HubSpot syncs dispatch asynchronously without awaiting
+- Stripe webhook returns 200 immediately; sync runs in background
+- Onboarding mutation returns facility_id immediately; sync runs in background
+- Failures captured to Sentry but never thrown to caller
+- Ensures no latency penalty for the user
 
+### Best-Effort Architecture
+- Missing HUBSPOT_API_KEY → silent no-op (dev environments work without HubSpot)
+- HubSpot API down → errors logged, Sentry alerted, caller unaffected
+- Email lookup failure (auth.users unavailable in service-role context) → skip Contact sync, continue with Company and Deal
+
+### Search-First Upsert
+- Company searched by rr_stripe_customer_id (unique identifier from Stripe)
+- Contact searched by email (standard HubSpot identifier)
+- Deal searched by associated company (prevents duplicate deals)
+- If search fails or returns undefined (API down), create new record; if returns null (not found), create; if returns id, patch
+
+## Known Limitations & TODO
+
+1. **Email from auth.users**: Service-role Supabase client cannot directly fetch auth.users email. Currently skips Contact sync if email is unavailable. TODO: add email column to user_profiles or use a separate lookup mechanism.
+
+2. **No timezone/unit preference sync**: Currently syncs facility name and address only. TODO: extend to temperature unit, length unit, timezone if HubSpot custom properties are added.
+
+3. **No custom property discovery**: Assumes rr_* custom properties exist in HubSpot. TODO: add property creation on first sync or provide onboarding documentation.
+
+## Integration Points
+
+### Stripe Webhook (6 events)
+- `checkout.session.completed` — initial subscription link
+- `customer.subscription.created` — new subscription
+- `customer.subscription.updated` — plan/seat changes
+- `customer.subscription.deleted` — churn
+- `invoice.payment_succeeded` — payment recovery
+- `invoice.payment_failed` — payment issue
+
+### Onboarding Flow
+- `createFacility` mutation syncs new facility to HubSpot on success
+
+### Admin Control Center
+- `admin.resyncHubSpot` procedure allows manual recovery/debugging
+
+## Environment Variables Required
+- `HUBSPOT_API_KEY` — HubSpot API key (optional; silent no-op if missing)
+- `NEXT_PUBLIC_SUPABASE_URL` — already set
+- `SUPABASE_SERVICE_ROLE_KEY` — already set
+
+## Testing
+- Vitest suite covers happy path, deal stage mapping, failure handling, and environment variable edge cases
+- Mock Supabase client and global fetch for API isolation
+- Sentry mocked to verify error capture calls
+
+## Phase G Context
+This work completes the HubSpot sync layer for Phase G (Platform & GTM). Facilities are now automatically synchronized to HubSpot whenever:
+- A new facility is created (onboarding)
+- Stripe subscription state changes (webhook)
+- Admins manually trigger resync (recovery)
+
+Next work: Phase F (AI assists) or further Phase G enhancements (Slack integration, webhook outbound, etc.).
