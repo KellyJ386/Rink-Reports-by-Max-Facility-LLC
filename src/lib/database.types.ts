@@ -392,6 +392,59 @@ export type Database = {
           },
         ]
       }
+      daily_weather: {
+        Row: {
+          avg_temp_f: number | null
+          conditions: string | null
+          created_at: string
+          facility_id: string
+          high_temp_f: number | null
+          id: string
+          low_temp_f: number | null
+          precipitation_in: number | null
+          raw_response: Json | null
+          snow_in: number | null
+          weather_date: string
+          wind_mph: number | null
+        }
+        Insert: {
+          avg_temp_f?: number | null
+          conditions?: string | null
+          created_at?: string
+          facility_id: string
+          high_temp_f?: number | null
+          id?: string
+          low_temp_f?: number | null
+          precipitation_in?: number | null
+          raw_response?: Json | null
+          snow_in?: number | null
+          weather_date: string
+          wind_mph?: number | null
+        }
+        Update: {
+          avg_temp_f?: number | null
+          conditions?: string | null
+          created_at?: string
+          facility_id?: string
+          high_temp_f?: number | null
+          id?: string
+          low_temp_f?: number | null
+          precipitation_in?: number | null
+          raw_response?: Json | null
+          snow_in?: number | null
+          weather_date?: string
+          wind_mph?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_weather_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facilities: {
         Row: {
           address_line1: string | null
@@ -536,6 +589,8 @@ export type Database = {
           created_at: string
           facility_id: string
           key: string
+          latitude: number | null
+          longitude: number | null
           module: string
           retention_policies: Json | null
           updated_at: string
@@ -545,6 +600,8 @@ export type Database = {
           created_at?: string
           facility_id: string
           key: string
+          latitude?: number | null
+          longitude?: number | null
           module: string
           retention_policies?: Json | null
           updated_at?: string
@@ -554,6 +611,8 @@ export type Database = {
           created_at?: string
           facility_id?: string
           key?: string
+          latitude?: number | null
+          longitude?: number | null
           module?: string
           retention_policies?: Json | null
           updated_at?: string
