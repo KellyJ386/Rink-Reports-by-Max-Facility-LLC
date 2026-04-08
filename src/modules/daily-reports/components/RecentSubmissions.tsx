@@ -10,6 +10,8 @@ import {
   type DailyReportAnswers,
 } from "@/modules/daily-reports/schema";
 import { useOfflineQuery } from "@/hooks/useOfflineQuery";
+import { usePdfExport } from "@/hooks/usePdfExport";
+import * as toast from "@/lib/toast";
 import type { RecentSubmission } from "@/server/trpc/routers/daily-reports";
 
 /**
@@ -73,6 +75,8 @@ function pendingRowsFromQueue(rows: QueuedRecord[]): PendingRow[] {
 
 export function RecentSubmissions({ checklists }: RecentSubmissionsProps) {
   const utils = trpc.useUtils();
+  const { downloadPdf, isExporting, setIsExporting } = usePdfExport();
+  const exportMutation = trpc.exports.dailyReportPdf.useMutation();
 
   // Build a stable fetcher ref so useOfflineQuery sees a stable callback.
   // Fetches the last 14 days of daily reports from the server.
@@ -160,15 +164,40 @@ export function RecentSubmissions({ checklists }: RecentSubmissionsProps) {
 
   const isEmpty = pending.length === 0 && dedupedServer.length === 0;
 
+  async function handleExportPdf() {
+    const reportDate =
+      dedupedServer[0]?.submitted_at?.slice(0, 10) ??
+      new Date().toISOString().slice(0, 10);
+    setIsExporting(true);
+    try {
+      const result = await exportMutation.mutateAsync({ reportDate });
+      downloadPdf(result);
+    } catch {
+      toast.show({ message: "Export failed — try again", kind: "error" });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <section className="rounded-lg border border-grey/30 bg-darkbg/40 p-6">
-      <div className="flex items-center gap-2">
-        <h2 className="text-xl font-semibold text-white">Recent submissions</h2>
-        {isStale && (
-          <span className="rounded border border-grey/40 px-1.5 py-0.5 text-xs text-grey">
-            cached
-          </span>
-        )}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-white">Recent submissions</h2>
+          {isStale && (
+            <span className="rounded border border-grey/40 px-1.5 py-0.5 text-xs text-grey">
+              cached
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => { void handleExportPdf(); }}
+          disabled={isExporting || isEmpty}
+          className="rounded border border-navy px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-navy disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isExporting ? "Exporting…" : "Export PDF"}
+        </button>
       </div>
 
       {isEmpty ? (
