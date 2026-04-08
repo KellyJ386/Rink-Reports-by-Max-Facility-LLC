@@ -14,6 +14,91 @@ export type Database = {
   }
   public: {
     Tables: {
+      device_credentials: {
+        Row: {
+          id: string
+          facility_id: string
+          device_id: string
+          device_type: 'refrigeration_controller' | 'air_quality_sensor' | 'ice_depth_sensor'
+          label: string
+          hashed_secret: string
+          last_seen_at: string | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          facility_id: string
+          device_id: string
+          device_type: 'refrigeration_controller' | 'air_quality_sensor' | 'ice_depth_sensor'
+          label: string
+          hashed_secret: string
+          last_seen_at?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          facility_id?: string
+          device_id?: string
+          device_type?: 'refrigeration_controller' | 'air_quality_sensor' | 'ice_depth_sensor'
+          label?: string
+          hashed_secret?: string
+          last_seen_at?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_credentials_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ingest_log: {
+        Row: {
+          id: string
+          device_id: string
+          facility_id: string
+          endpoint: string
+          payload_hash: string
+          status: 'accepted' | 'rejected' | 'duplicate'
+          rejection_reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          device_id: string
+          facility_id: string
+          endpoint: string
+          payload_hash: string
+          status: 'accepted' | 'rejected' | 'duplicate'
+          rejection_reason?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          device_id?: string
+          facility_id?: string
+          endpoint?: string
+          payload_hash?: string
+          status?: 'accepted' | 'rejected' | 'duplicate'
+          rejection_reason?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingest_log_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alerts: {
         Row: {
           id: string
