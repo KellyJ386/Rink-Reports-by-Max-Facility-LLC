@@ -2,6 +2,7 @@ import "server-only";
 
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 import { dailyReportsAdminRouter } from "@/server/trpc/routers/daily-reports-admin";
@@ -14,6 +15,7 @@ import { schedulingAdminRouter } from "@/server/trpc/routers/scheduling-admin";
 import { communicationsAdminRouter } from "@/server/trpc/routers/communications-admin";
 import { shiftsAdminRouter } from "@/server/trpc/routers/shifts-admin";
 import { brandingAdminRouter } from "@/server/trpc/routers/branding-admin";
+import { syncFacilityToHubSpot } from "@/server/hubspot/sync";
 
 /**
  * Admin Control Center API.
@@ -641,5 +643,74 @@ export const adminRouter = router({
           message: error.message,
         });
       return { ok: true as const };
+    }),
+
+  /**
+   * Manual HubSpot resync procedure for admin debugging.
+   * Super-admin only. Can resync a specific facility or all facilities.
+   *
+   * Usage:
+   *   - { facilityId: "uuid" } - sync one facility
+   *   - {} - sync all facilities in the account
+   */
+  resyncHubSpot: protectedProcedure
+    .input(z.object({ facilityId: z.string().uuid().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      await requireAdmin(ctx);
+
+      // Check for super_admin role (more privileged than admin)
+      const { data: profile } = await ctx.supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("user_id", ctx.user.id)
+        .maybeSingle();
+
+      if (profile?.role !== "super_admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Super-admin role required for HubSpot resync",
+        });
+      }
+
+      if (input.facilityId) {
+        // Single facility resync
+        try {
+          await syncFacilityToHubSpot(input.facilityId);
+          return { synced: 1, errors: 0 };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          Sentry.captureException(err, { tags: { context: "hubspot-manual-resync" } });
+          return { synced: 0, errors: 1 };
+        }
+      } else {
+        // Sync all facilities (paginated to avoid memory bloat)
+        const { data: facilities, error: fetchError } = await ctx.supabase
+          .from("facilities")
+          .select("id");
+
+        if (fetchError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: fetchError.message,
+          });
+        }
+
+        let synced = 0;
+        let errors = 0;
+
+        for (const facility of facilities ?? []) {
+          try {
+            await syncFacilityToHubSpot(facility.id);
+            synced++;
+          } catch (err) {
+            errors++;
+            Sentry.captureException(err, {
+              tags: { context: "hubspot-manual-resync-batch" },
+            });
+          }
+        }
+
+        return { synced, errors };
+      }
     }),
 });
