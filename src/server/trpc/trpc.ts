@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 
 import type { TRPCContext } from "@/server/trpc/context";
 import { canMutate } from "@/lib/auth/roles";
+import { checkPlanAccess } from "@/server/billing/planGuard";
 
 const t = initTRPC.context<TRPCContext>().create({
   errorFormatter({ shape, error }) {
@@ -83,3 +84,29 @@ export const viewerProcedure = protectedProcedure.use(({ ctx, next, type }) => {
   }
   return next({ ctx });
 });
+
+/**
+ * Factory that creates a procedure guarded by the billing plan state.
+ *
+ * Use: `billingProtectedProcedure('dailyReports').query(...)` to create
+ * a procedure that only succeeds when the facility has access to that
+ * module according to the plan guard rules.
+ *
+ * Consumers adopt this incrementally — existing routers are not changed.
+ * The reason for denial is surfaced as the tRPC FORBIDDEN message so
+ * the client can render an appropriate UI (e.g. upgrade prompt vs locked
+ * banner vs trial expired page).
+ */
+export function billingProtectedProcedure(moduleKey: string) {
+  return protectedProcedure.use(async ({ ctx, next }) => {
+    const result = await checkPlanAccess(
+      ctx.facilityId,
+      moduleKey,
+      ctx.supabase,
+    );
+    if (!result.allowed) {
+      throw new TRPCError({ code: "FORBIDDEN", message: result.reason });
+    }
+    return next({ ctx });
+  });
+}
