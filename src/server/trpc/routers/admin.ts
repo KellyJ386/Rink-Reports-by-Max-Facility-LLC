@@ -5,6 +5,7 @@ import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
 import { protectedProcedure, router } from "@/server/trpc/trpc";
+import { logAdminMutation } from "@/server/audit/logger";
 import { dailyReportsAdminRouter } from "@/server/trpc/routers/daily-reports-admin";
 import { iceOperationsAdminRouter } from "@/server/trpc/routers/ice-operations-admin";
 import { refrigerationAdminRouter } from "@/server/trpc/routers/refrigeration-admin";

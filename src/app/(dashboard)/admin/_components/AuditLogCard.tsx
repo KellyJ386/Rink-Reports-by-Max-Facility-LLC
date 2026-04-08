@@ -1,36 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import { trpc } from "@/lib/trpc/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { trpc } from "@/lib/trpc";
+
+interface AuditEntryRow {
+  id: string;
+  facility_id: string | null;
+  user_email: string;
+  user_role: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  before_snapshot: unknown;
+  after_snapshot: unknown;
+  created_at: string;
+}
 
 /**
  * Audit Log Card — displays facility admin audit log.
- * Shows timestamp, user email, role, action, resource type.
- * Expandable rows show before/after JSON snapshots.
+ *
+ * Shows timestamp, user email, role, action, resource type. Rows are
+ * expandable to reveal before/after JSON snapshots. Supports a date
+ * range filter (1-365 days) and an optional user email filter.
+ * Admins can export the current view to CSV client-side.
  */
 export function AuditLogCard() {
-  const [days, setDays] = useState(30);
-  const [userEmail, setUserEmail] = useState("");
+  const [days, setDays] = useState<number>(30);
+  const [userEmail, setUserEmail] = useState<string>("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: entries, isLoading, error } = trpc.admin.getAuditLog.useQuery({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const query = (trpc.admin as any).getAuditLog.useQuery({
     days,
-    userEmail: userEmail || undefined,
+    userEmail: userEmail.trim() === "" ? undefined : userEmail.trim(),
     limit: 50,
-  });
+  }) as {
+    data: AuditEntryRow[] | undefined;
+    isLoading: boolean;
+    error: { message: string } | null;
+  };
+  const { data, isLoading, error } = query;
+  const entries: AuditEntryRow[] = data ?? [];
 
-  const handleExportCSV = () => {
-    if (!entries || entries.length === 0) return;
-
+  function handleExportCsv(): void {
+    if (entries.length === 0) return;
     const headers = [
       "Timestamp",
       "User Email",
@@ -45,183 +58,151 @@ export function AuditLogCard() {
       entry.user_role,
       entry.action,
       entry.resource_type,
-      entry.resource_id || "",
+      entry.resource_id ?? "",
     ]);
-
+    const escape = (v: string | number | null): string => {
+      const s = v === null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
     const csv = [
-      headers.join(","),
-      ...rows.map((row) =>
-        row.map((cell) => `"${cell}"`).join(","),
-      ),
+      headers.map(escape).join(","),
+      ...rows.map((row) => row.map(escape).join(",")),
     ].join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `audit-log-${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `audit-log-${new Date().toISOString().split("T")[0] ?? "export"}.csv`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  };
+  }
 
   return (
-    <div className="space-y-4 rounded-lg border border-[#A5ACAF] bg-white p-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-[#003B6F]">Audit Log</h3>
-        <p className="text-sm text-[#A5ACAF]">
+    <section className="rounded-lg border border-[#A5ACAF]/30 bg-[#001122]/40 p-6">
+      <div>
+        <h2 className="text-lg font-semibold text-white">Audit Log</h2>
+        <p className="mt-1 text-sm text-[#A5ACAF]">
           All admin actions and configuration changes
         </p>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col gap-4 rounded-lg bg-gray-50 p-4 sm:flex-row">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
-          <label className="text-sm font-medium text-[#003B6F]">
-            Date Range (days)
+          <label className="text-xs uppercase text-[#A5ACAF]">
+            Date range
           </label>
-          <Select value={days.toString()} onValueChange={(v) => setDays(parseInt(v))}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Last 7 days</SelectItem>
-              <SelectItem value="30">Last 30 days</SelectItem>
-              <SelectItem value="90">Last 90 days</SelectItem>
-              <SelectItem value="365">Last year</SelectItem>
-            </SelectContent>
-          </Select>
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="mt-1 w-full rounded border border-[#A5ACAF]/30 bg-[#001122] px-3 py-2 text-sm text-white"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+            <option value={365}>Last year</option>
+          </select>
         </div>
-
         <div className="flex-1">
-          <label className="text-sm font-medium text-[#003B6F]">
+          <label className="text-xs uppercase text-[#A5ACAF]">
             Filter by email
           </label>
-          <Input
+          <input
             type="email"
-            placeholder="user@example.com"
             value={userEmail}
             onChange={(e) => setUserEmail(e.target.value)}
-            className="border-[#A5ACAF]"
+            placeholder="user@example.com"
+            className="mt-1 w-full rounded border border-[#A5ACAF]/30 bg-[#001122] px-3 py-2 text-sm text-white placeholder:text-[#A5ACAF]/50"
           />
         </div>
-
-        <div className="flex items-end">
-          <Button
-            onClick={handleExportCSV}
-            disabled={!entries || entries.length === 0}
-            variant="outline"
-            className="border-[#003B6F] text-[#003B6F] hover:bg-[#003B6F] hover:text-white"
-          >
-            Export CSV
-          </Button>
-        </div>
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          disabled={entries.length === 0}
+          className="rounded bg-[#4DFF00] px-3 py-2 text-sm font-semibold text-[#003B6F] disabled:opacity-50"
+        >
+          Export CSV
+        </button>
       </div>
 
-      {/* Table */}
-      {isLoading ? (
-        <div className="py-8 text-center text-[#A5ACAF]">Loading...</div>
-      ) : error ? (
-        <div className="py-8 text-center text-[#F42A2A]">
-          Error loading audit log
-        </div>
-      ) : entries && entries.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full">
+      {isLoading && (
+        <p className="mt-4 text-sm text-[#A5ACAF]">Loading audit log…</p>
+      )}
+      {error && (
+        <p className="mt-4 text-sm text-[#F42A2A]">
+          Failed to load audit log: {error.message}
+        </p>
+      )}
+
+      {!isLoading && !error && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[#A5ACAF]">
-                <th className="px-3 py-3 text-left text-sm font-semibold text-[#003B6F]">
-                  Timestamp
-                </th>
-                <th className="px-3 py-3 text-left text-sm font-semibold text-[#003B6F]">
-                  User Email
-                </th>
-                <th className="px-3 py-3 text-left text-sm font-semibold text-[#003B6F]">
-                  Role
-                </th>
-                <th className="px-3 py-3 text-left text-sm font-semibold text-[#003B6F]">
-                  Action
-                </th>
-                <th className="px-3 py-3 text-left text-sm font-semibold text-[#003B6F]">
-                  Resource
-                </th>
+              <tr className="border-b border-[#A5ACAF]/30 text-xs uppercase text-[#A5ACAF]">
+                <th className="px-2 py-2">Time</th>
+                <th className="px-2 py-2">User</th>
+                <th className="px-2 py-2">Role</th>
+                <th className="px-2 py-2">Action</th>
+                <th className="px-2 py-2">Resource</th>
+                <th className="px-2 py-2">Details</th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                <tbody key={entry.id}>
+              {entries.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-2 py-4 text-center text-[#A5ACAF]">
+                    No entries for the selected filters.
+                  </td>
+                </tr>
+              )}
+              {entries.map((entry) => {
+                const isOpen = expandedId === entry.id;
+                return (
                   <tr
-                    className="border-b border-[#A5ACAF] hover:bg-gray-50 cursor-pointer"
-                    onClick={() =>
-                      setExpandedId(expandedId === entry.id ? null : entry.id)
-                    }
+                    key={entry.id}
+                    className="border-b border-[#A5ACAF]/10 align-top text-white"
                   >
-                    <td className="px-3 py-3 text-sm text-gray-700">
+                    <td className="px-2 py-2 text-xs">
                       {new Date(entry.created_at).toLocaleString()}
                     </td>
-                    <td className="px-3 py-3 text-sm text-gray-700">
-                      {entry.user_email}
-                    </td>
-                    <td className="px-3 py-3 text-sm text-gray-700">
-                      <span className="inline-block rounded bg-gray-200 px-2 py-1 text-xs font-medium text-gray-800">
-                        {entry.user_role}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-sm text-gray-700">
+                    <td className="px-2 py-2 text-xs">{entry.user_email}</td>
+                    <td className="px-2 py-2 text-xs">{entry.user_role}</td>
+                    <td className="px-2 py-2 text-xs font-semibold">
                       {entry.action}
                     </td>
-                    <td className="px-3 py-3 text-sm text-gray-700">
+                    <td className="px-2 py-2 text-xs">
                       {entry.resource_type}
-                      {entry.resource_id && ` • ${entry.resource_id}`}
+                      {entry.resource_id ? ` #${entry.resource_id}` : ""}
+                    </td>
+                    <td className="px-2 py-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(isOpen ? null : entry.id)}
+                        className="text-[#4DFF00] underline"
+                      >
+                        {isOpen ? "Hide" : "Show"}
+                      </button>
+                      {isOpen && (
+                        <pre className="mt-2 max-w-md overflow-x-auto rounded bg-black p-2 text-[10px]">
+                          {JSON.stringify(
+                            {
+                              before: entry.before_snapshot,
+                              after: entry.after_snapshot,
+                            },
+                            null,
+                            2,
+                          )}
+                        </pre>
+                      )}
                     </td>
                   </tr>
-
-                  {/* Expandable row */}
-                  {expandedId === entry.id && (
-                    <tr className="border-b border-[#A5ACAF] bg-gray-50">
-                      <td colSpan={5} className="px-3 py-4">
-                        <div className="space-y-3 rounded bg-white p-3">
-                          {entry.before_snapshot && (
-                            <div>
-                              <p className="text-xs font-semibold text-[#003B6F]">
-                                Before
-                              </p>
-                              <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-100 p-2 text-xs text-gray-700">
-                                {JSON.stringify(
-                                  entry.before_snapshot,
-                                  null,
-                                  2,
-                                )}
-                              </pre>
-                            </div>
-                          )}
-                          {entry.after_snapshot && (
-                            <div>
-                              <p className="text-xs font-semibold text-[#003B6F]">
-                                After
-                              </p>
-                              <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-100 p-2 text-xs text-gray-700">
-                                {JSON.stringify(
-                                  entry.after_snapshot,
-                                  null,
-                                  2,
-                                )}
-                              </pre>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
-      ) : (
-        <div className="py-8 text-center text-[#A5ACAF]">
-          No audit log entries found
-        </div>
       )}
-    </div>
+    </section>
   );
 }

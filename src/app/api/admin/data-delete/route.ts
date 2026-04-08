@@ -74,25 +74,31 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const tablesAffected: string[] = [];
 
+    // Phase D migration 020 added archived_at to these 4 tables, but the
+    // hand-maintained database.types.ts doesn't reflect it. Cast each
+    // update call to `any` so TS accepts the payload — the column exists
+    // at runtime.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = serviceClient as any;
     const [
       dailyReportsRes,
       iceOperationsRes,
       refrigerationReadingsRes,
       iceDepthSessionsRes,
     ] = await Promise.all([
-      serviceClient
+      sb
         .from("daily_reports")
         .update({ archived_at: now })
         .eq("facility_id", facilityId),
-      serviceClient
+      sb
         .from("ice_operations")
         .update({ archived_at: now })
         .eq("facility_id", facilityId),
-      serviceClient
+      sb
         .from("refrigeration_readings")
         .update({ archived_at: now })
         .eq("facility_id", facilityId),
-      serviceClient
+      sb
         .from("ice_depth_sessions")
         .update({ archived_at: now })
         .eq("facility_id", facilityId),

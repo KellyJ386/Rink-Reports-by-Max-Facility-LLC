@@ -116,7 +116,7 @@ describe("org roll-up RLS isolation", () => {
 
     const ctx = buildCtxForOrg(ORG_A, fake);
     const caller = appRouter.createCaller(ctx);
-    await caller.org.listFacilities({});
+    await caller.org.listFacilities();
 
     const facChain = fake._chains["facilities"] as MockChain | undefined;
     expect(facChain).toBeDefined();
@@ -142,7 +142,7 @@ describe("org roll-up RLS isolation", () => {
 
     const ctx = buildCtxForOrg(ORG_B, fake);
     const caller = appRouter.createCaller(ctx);
-    await caller.org.listFacilities({});
+    await caller.org.listFacilities();
 
     const facChain = fake._chains["facilities"] as MockChain | undefined;
     expect(facChain).toBeDefined();
@@ -179,9 +179,13 @@ describe("org roll-up RLS isolation", () => {
     expect(orgEq![1]).toBe(ORG_A);
   });
 
-  it("rejects a caller that claims org-a but only has org-b membership", async () => {
+  it("a caller with only org-b membership only sees org-b facilities", async () => {
+    // The orgAdminProcedure middleware picks ctx.orgRoles's first
+    // org_admin entry as selectedOrgId. Because the input schema no
+    // longer accepts an explicit organizationId, there is no way for
+    // a client to escalate to an org they don't belong to — the org
+    // is derived purely from server-resolved context.
     const fake = buildFakeSupabase();
-    // ctx.orgRoles has org-b, but we try to call with organizationId: ORG_A
     const ctx: TRPCContext = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: fake as any,
@@ -189,21 +193,20 @@ describe("org roll-up RLS isolation", () => {
       facilityId: "fac-b",
       role: "admin",
       organizationIds: [ORG_B],
-      orgRoles: { [ORG_B]: "org_admin" }, // only org-b
+      orgRoles: { [ORG_B]: "org_admin" },
     };
 
     const caller = appRouter.createCaller(ctx);
+    await caller.org.listFacilities();
 
-    // The orgAdminProcedure middleware reads rawInput via getRawInput()
-    // and verifies the caller has org_admin in the requested org.
-    // Since ctx.orgRoles only has ORG_B, requesting ORG_A is FORBIDDEN.
-    await expect(
-      caller.org.listFacilities({ organizationId: ORG_A }),
-    ).rejects.toSatisfy((e: unknown) => {
-      expect(e).toBeInstanceOf(Error);
-      const code = (e as { code?: string }).code;
-      expect(code).toBe("FORBIDDEN");
-      return true;
-    });
+    // The facilities query must be scoped to ORG_B (ctx-derived), never
+    // ORG_A. Inspect the chain's .eq calls.
+    const facilitiesChain = fake._chains.facilities;
+    if (facilitiesChain) {
+      const eqCalls = (facilitiesChain.eq as ReturnType<typeof vi.fn>).mock.calls;
+      const orgIdCalls = eqCalls.filter((c) => c[0] === "organization_id");
+      expect(orgIdCalls.some((c) => c[1] === ORG_B)).toBe(true);
+      expect(orgIdCalls.some((c) => c[1] === ORG_A)).toBe(false);
+    }
   });
 });

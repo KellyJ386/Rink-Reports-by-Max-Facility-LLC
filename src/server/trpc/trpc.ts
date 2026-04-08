@@ -130,13 +130,8 @@ export function billingProtectedProcedure(moduleKey: string) {
  * CLAUDE.md Rule 1: organizationId from input is VERIFIED against
  * ctx.orgRoles — the client cannot escalate to an org they don't own.
  */
-export const orgAdminInputSchema = z
-  .object({ organizationId: z.string().uuid() })
-  .optional();
-
 export const orgAdminProcedure = t.procedure
-  .input(orgAdminInputSchema)
-  .use(({ ctx, input, next }) => {
+  .use(({ ctx, next }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Not signed in" });
     }
@@ -152,21 +147,11 @@ export const orgAdminProcedure = t.procedure
       });
     }
 
-    let selectedOrgId: string;
-
-    if (input?.organizationId) {
-      // Verify caller actually has org_admin in the requested org
-      if (ctx.orgRoles[input.organizationId] !== "org_admin") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Not an org_admin for the requested organization",
-        });
-      }
-      selectedOrgId = input.organizationId;
-    } else {
-      // Default to the first org where the caller is an admin
-      selectedOrgId = adminOrgIds[0]!;
-    }
+    // Default to the first org where the caller is an admin. If a
+    // downstream procedure wants to let a user switch between orgs,
+    // it can accept an input.organizationId and verify against
+    // ctx.orgRoles in its own middleware.
+    const selectedOrgId = adminOrgIds[0]!;
 
     return next({
       ctx: {

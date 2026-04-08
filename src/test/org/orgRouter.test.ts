@@ -159,7 +159,7 @@ describe("org router", () => {
       const caller = appRouter.createCaller(ctx);
 
       // listFacilities uses orgAdminProcedure — should not throw
-      const result = await caller.org.listFacilities({});
+      const result = await caller.org.listFacilities();
       expect(Array.isArray(result)).toBe(true);
     });
 
@@ -169,7 +169,7 @@ describe("org router", () => {
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.org.listFacilities({}),
+        caller.org.listFacilities(),
       ).rejects.toSatisfy((e: unknown) => {
         expect(e).toBeInstanceOf(TRPCError);
         expect((e as TRPCError).code).toBe("FORBIDDEN");
@@ -196,7 +196,7 @@ describe("org router", () => {
 
       const ctx = buildOrgAdminCtx(ORG_A, fake);
       const caller = appRouter.createCaller(ctx);
-      const result = await caller.org.listFacilities({});
+      const result = await caller.org.listFacilities();
 
       // Verify the supabase .eq call on facilities used the org from ctx
       const facChain = fake._chains["facilities"] as MockChain | undefined;
@@ -217,7 +217,7 @@ describe("org router", () => {
       const fake = buildFakeSupabase({ facilities: [] });
       const ctx = buildOrgAdminCtx(ORG_A, fake);
       const caller = appRouter.createCaller(ctx);
-      const result = await caller.org.listFacilities({});
+      const result = await caller.org.listFacilities();
       expect(result).toEqual([]);
     });
 
@@ -233,7 +233,7 @@ describe("org router", () => {
       });
       const ctx = buildOrgAdminCtx(ORG_B, fake);
       const caller = appRouter.createCaller(ctx);
-      await caller.org.listFacilities({});
+      await caller.org.listFacilities();
 
       const facChain2 = fake._chains["facilities"] as MockChain | undefined;
       expect(facChain2).toBeDefined();
@@ -317,7 +317,7 @@ describe("org router", () => {
 
       const ctx = buildOrgAdminCtx(ORG_A, fake);
       const caller = appRouter.createCaller(ctx);
-      const result = await caller.org.getFacilityAlerts({});
+      const result = await caller.org.getFacilityAlerts();
 
       expect(result).toHaveLength(1);
       expect(result[0]!.facilityName).toBe("Ice Palace");
@@ -329,7 +329,7 @@ describe("org router", () => {
       const fake = buildFakeSupabase({ facilities: [] });
       const ctx = buildOrgAdminCtx(ORG_A, fake);
       const caller = appRouter.createCaller(ctx);
-      const result = await caller.org.getFacilityAlerts({});
+      const result = await caller.org.getFacilityAlerts();
       expect(result).toEqual([]);
     });
 
@@ -372,7 +372,7 @@ describe("org router", () => {
 
       const ctx = buildOrgAdminCtx(ORG_A, fake);
       const caller = appRouter.createCaller(ctx);
-      const result = await caller.org.getFacilityAlerts({});
+      const result = await caller.org.getFacilityAlerts();
 
       expect(result[0]!.severity).toBe("critical");
       expect(result[1]!.severity).toBe("warning");

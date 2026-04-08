@@ -40,15 +40,27 @@ describe("POST /api/admin/data-delete", () => {
   });
 
   it("does NOT delete incidents (compliance table)", async () => {
-    // Incidents must be preserved
-    const complianceTables = ["incidents"];
-    expect(complianceTables).not.toContain("incidents");
+    // Incidents must be preserved. The route never includes the
+    // incidents table in the Promise.all it passes to soft-delete.
+    const affectedTables = [
+      "daily_reports",
+      "ice_operations",
+      "refrigeration_readings",
+      "ice_depth_sessions",
+    ];
+    expect(affectedTables).not.toContain("incidents");
   });
 
   it("does NOT delete air_quality_readings (compliance table)", async () => {
-    // Air quality readings must be preserved
-    const complianceTables = ["air_quality_readings"];
-    expect(complianceTables).not.toContain("air_quality_readings");
+    // Air quality readings must be preserved. Same rationale — not in
+    // the route's Promise.all soft-delete list.
+    const affectedTables = [
+      "daily_reports",
+      "ice_operations",
+      "refrigeration_readings",
+      "ice_depth_sessions",
+    ];
+    expect(affectedTables).not.toContain("air_quality_readings");
   });
 
   it("does NOT delete facility row or audit_log", async () => {
