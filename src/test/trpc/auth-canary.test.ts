@@ -72,6 +72,8 @@ const unauthedCtx: TRPCContext = {
   user: null,
   facilityId: null,
   role: null,
+  organizationIds: [],
+  orgRoles: {},
 };
 
 // One simple query per top-level router. Each must require auth.

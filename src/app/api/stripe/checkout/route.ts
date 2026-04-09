@@ -6,16 +6,18 @@ import { getStripe, priceIdForPlan, type PlanId } from "@/lib/stripe";
 /**
  * POST /api/stripe/checkout
  *
- * Body: { plan: "starter" | "pro" | "enterprise" }
+ * Body: { plan?: "starter" | "pro" | "enterprise" }
+ *
+ * Phase G update: if no plan is provided, falls back to
+ * STRIPE_PRICE_ID (the single-facility price). Supports the new
+ * billing page that uses a direct "Upgrade Now" flow.
  *
  * Auth: requires a Supabase session cookie. The route resolves the
  * caller's facility from user_profiles, refuses non-admins, looks
  * up (or lazily creates) the facility's Stripe Customer, opens a
- * Stripe Checkout Session in subscription mode, and returns
- * { url } so the client can redirect into Stripe's hosted page.
- *
- * Returning JSON instead of an HTTP redirect lets the client decide
- * whether to navigate (window.location) or open a new tab.
+ * Stripe Checkout Session in subscription mode with a 14-day trial
+ * if no prior subscription exists, and returns { url } so the client
+ * can redirect into Stripe's hosted page.
  *
  * The facility_id is stored on the Checkout Session as
  * `client_reference_id` AND in subscription metadata so the webhook
@@ -53,46 +55,65 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as { plan?: string };
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    body = {};
   }
 
-  const plan = body.plan as PlanId | undefined;
-  if (plan !== "starter" && plan !== "pro" && plan !== "enterprise") {
-    return NextResponse.json({ error: "Unknown plan" }, { status: 400 });
+  // Resolve price ID: prefer explicit plan, fall back to STRIPE_PRICE_ID env var
+  let priceId: string | null = null;
+  if (body.plan && (body.plan === "starter" || body.plan === "pro" || body.plan === "enterprise")) {
+    priceId = priceIdForPlan(body.plan as PlanId);
   }
-  const priceId = priceIdForPlan(plan);
+  if (!priceId) {
+    priceId = process.env.STRIPE_PRICE_ID ?? null;
+  }
   if (!priceId) {
     return NextResponse.json(
-      { error: `Plan "${plan}" is not configured on the server` },
+      { error: "No Stripe price configured — set STRIPE_PRICE_ID or choose a plan." },
       { status: 500 },
     );
   }
 
-  // Look up (or lazily create) the Stripe Customer for this facility.
-  const { data: sub } = await supabase
-    .from("facility_subscriptions")
-    .select("stripe_customer_id")
+  // Look up existing stripe_customer_id from facility_config (Phase G)
+  // or facility_subscriptions (Phase 6, legacy).
+  const { data: configRow } = await supabase
+    .from("facility_config")
+    .select("stripe_customer_id, stripe_subscription_id")
     .eq("facility_id", profile.facility_id)
+    .limit(1)
     .maybeSingle();
 
   const stripe = getStripe();
-  let customerId = sub?.stripe_customer_id ?? null;
+  let customerId = configRow?.stripe_customer_id ?? null;
+
+  if (!customerId) {
+    // Also check legacy facility_subscriptions table
+    const { data: sub } = await supabase
+      .from("facility_subscriptions")
+      .select("stripe_customer_id")
+      .eq("facility_id", profile.facility_id)
+      .maybeSingle();
+    customerId = sub?.stripe_customer_id ?? null;
+  }
+
   if (!customerId) {
     const customer = await stripe.customers.create({
       email: user.email ?? undefined,
-      metadata: { facility_id: profile.facility_id },
+      metadata: { facilityId: profile.facility_id },
     });
     customerId = customer.id;
+    // Store in facility_config
     await supabase
-      .from("facility_subscriptions")
+      .from("facility_config")
       .update({ stripe_customer_id: customerId })
       .eq("facility_id", profile.facility_id);
   }
 
-  // Build absolute success/cancel URLs from the request origin so
-  // local dev and prod just work without a separate env var.
+  // Build absolute success/cancel URLs from the request origin.
   const url = new URL(req.url);
   const origin = `${url.protocol}//${url.host}`;
+
+  // Determine whether to include a trial period (no prior subscription)
+  const hasExistingSubscription = Boolean(configRow?.stripe_subscription_id);
 
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
@@ -100,10 +121,11 @@ export async function POST(req: Request) {
     line_items: [{ price: priceId, quantity: 1 }],
     client_reference_id: profile.facility_id,
     subscription_data: {
-      metadata: { facility_id: profile.facility_id, plan },
+      metadata: { facilityId: profile.facility_id },
+      ...(hasExistingSubscription ? {} : { trial_period_days: 14 }),
     },
-    success_url: `${origin}/admin?billing=success`,
-    cancel_url: `${origin}/admin?billing=cancel`,
+    success_url: `${origin}/billing?billing=success`,
+    cancel_url: `${origin}/billing?billing=cancel`,
     allow_promotion_codes: true,
   });
 

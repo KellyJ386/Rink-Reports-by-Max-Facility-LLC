@@ -37,6 +37,8 @@ function buildCtx(facilityId: string | null = TEST_FACILITY_ID): TRPCContext {
     user: { id: "user-1", email: "test@example.com" } as unknown as TRPCContext["user"],
     facilityId,
     role: "staff",
+    organizationIds: [],
+    orgRoles: {},
   };
 }
 

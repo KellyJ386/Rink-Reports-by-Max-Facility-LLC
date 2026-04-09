@@ -17,6 +17,7 @@ import { ModuleConfigShell } from "@/app/(dashboard)/admin/_components/ModuleCon
 import { NotificationPrefsCard } from "@/app/(dashboard)/admin/_components/NotificationPrefsCard";
 import { RetentionPolicyCard } from "@/app/(dashboard)/admin/_components/RetentionPolicyCard";
 import { CalendarFeedCard } from "@/app/(dashboard)/admin/_components/CalendarFeedCard";
+import { OrganizationCard } from "@/app/(dashboard)/admin/_components/OrganizationCard";
 
 /**
  * Admin Control Center.
@@ -114,6 +115,9 @@ export default async function AdminPage() {
       <RetentionPolicyCard />
       <CalendarFeedCard />
       <ModuleConfigShell />
+
+      {/* Phase G — Multi-facility Organizations (super_admin only) */}
+      <OrganizationCard />
 
       {/* Phase E — Sensor Devices */}
       <section className="rounded-lg border border-[#A5ACAF]/30 bg-[#001122]/40 p-6">

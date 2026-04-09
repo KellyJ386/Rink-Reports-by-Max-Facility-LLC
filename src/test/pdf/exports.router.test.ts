@@ -107,6 +107,8 @@ function authedCtx(fakeSupabase: ReturnType<typeof buildFakeSupabase>): TRPCCont
     user: { id: "u-test" } as TRPCContext["user"],
     facilityId: TEST_FACILITY_ID,
     role: "staff",
+    organizationIds: [],
+    orgRoles: {},
   };
 }
 
@@ -115,6 +117,8 @@ const unauthedCtx: TRPCContext = {
   user: null,
   facilityId: null,
   role: null,
+  organizationIds: [],
+  orgRoles: {},
 };
 
 const noFacilityCtx: TRPCContext = {
@@ -122,6 +126,8 @@ const noFacilityCtx: TRPCContext = {
   user: { id: "u-test" } as TRPCContext["user"],
   facilityId: null,
   role: null,
+  organizationIds: [],
+  orgRoles: {},
 };
 
 // ── Tests ────────────────────────────────────────────────────────────────────

@@ -2,8 +2,10 @@ import "server-only";
 
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 import { protectedProcedure, router } from "@/server/trpc/trpc";
+import { logAdminMutation } from "@/server/audit/logger";
 import { dailyReportsAdminRouter } from "@/server/trpc/routers/daily-reports-admin";
 import { iceOperationsAdminRouter } from "@/server/trpc/routers/ice-operations-admin";
 import { refrigerationAdminRouter } from "@/server/trpc/routers/refrigeration-admin";
@@ -14,6 +16,7 @@ import { schedulingAdminRouter } from "@/server/trpc/routers/scheduling-admin";
 import { communicationsAdminRouter } from "@/server/trpc/routers/communications-admin";
 import { shiftsAdminRouter } from "@/server/trpc/routers/shifts-admin";
 import { brandingAdminRouter } from "@/server/trpc/routers/branding-admin";
+import { syncFacilityToHubSpot } from "@/server/hubspot/sync";
 
 /**
  * Admin Control Center API.
@@ -378,6 +381,14 @@ export const adminRouter = router({
         });
       }
 
+      // Fetch before snapshot for audit log
+      const { data: beforeData } = await ctx.supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("user_id", input.user_id)
+        .eq("facility_id", ctx.facilityId)
+        .maybeSingle();
+
       const { error } = await ctx.supabase
         .from("user_profiles")
         .update({ role: input.role })
@@ -390,6 +401,16 @@ export const adminRouter = router({
           message: error.message,
         });
       }
+
+      // Audit log the user role change
+      await logAdminMutation(ctx, {
+        action: "update_user_role",
+        resourceType: "user_profile",
+        resourceId: input.user_id,
+        before: beforeData ? { role: beforeData.role } : undefined,
+        after: { role: input.role },
+      });
+
       return { ok: true as const };
     }),
 
@@ -628,6 +649,14 @@ export const adminRouter = router({
     .mutation(async ({ ctx, input }) => {
       if (!ctx.facilityId) throw new TRPCError({ code: "FORBIDDEN" });
       await requireAdmin(ctx);
+
+      // Fetch before snapshot
+      const { data: beforeData } = await ctx.supabase
+        .from("facility_config")
+        .select("retention_policies")
+        .eq("facility_id", ctx.facilityId)
+        .maybeSingle();
+
       // retention_policies is a JSONB column on facility_config rows.
       // We update all config rows for this facility in one call — the
       // column value is the same regardless of (module, key).
@@ -640,6 +669,134 @@ export const adminRouter = router({
           code: "INTERNAL_SERVER_ERROR",
           message: error.message,
         });
+
+      // Audit log the retention policy update
+      await logAdminMutation(ctx, {
+        action: "update_retention_policies",
+        resourceType: "facility_config",
+        resourceId: ctx.facilityId,
+        before: beforeData?.retention_policies as Record<string, unknown> | undefined,
+        after: input as unknown as Record<string, unknown>,
+      });
+
       return { ok: true as const };
+    }),
+
+  /**
+   * Manual HubSpot resync procedure for admin debugging.
+   * Super-admin only. Can resync a specific facility or all facilities.
+   *
+   * Usage:
+   *   - { facilityId: "uuid" } - sync one facility
+   *   - {} - sync all facilities in the account
+   */
+  resyncHubSpot: protectedProcedure
+    .input(z.object({ facilityId: z.string().uuid().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      await requireAdmin(ctx);
+
+      // Check for super_admin role (more privileged than admin)
+      const { data: profile } = await ctx.supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("user_id", ctx.user.id)
+        .maybeSingle();
+
+      if (profile?.role !== "super_admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Super-admin role required for HubSpot resync",
+        });
+      }
+
+      if (input.facilityId) {
+        // Single facility resync
+        try {
+          await syncFacilityToHubSpot(input.facilityId);
+          return { synced: 1, errors: 0 };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          Sentry.captureException(err, { tags: { context: "hubspot-manual-resync" } });
+          return { synced: 0, errors: 1 };
+        }
+      } else {
+        // Sync all facilities (paginated to avoid memory bloat)
+        const { data: facilities, error: fetchError } = await ctx.supabase
+          .from("facilities")
+          .select("id");
+
+        if (fetchError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: fetchError.message,
+          });
+        }
+
+        let synced = 0;
+        let errors = 0;
+
+        for (const facility of facilities ?? []) {
+          try {
+            await syncFacilityToHubSpot(facility.id);
+            synced++;
+          } catch (err) {
+            errors++;
+            Sentry.captureException(err, {
+              tags: { context: "hubspot-manual-resync-batch" },
+            });
+          }
+        }
+
+        return { synced, errors };
+      }
+    }),
+
+  // -------------------------------------------------------------------
+  // Phase G — SOC2 audit log viewer
+  // -------------------------------------------------------------------
+
+  /**
+   * Retrieve paginated audit log entries for the caller's facility.
+   * Admin only. Supports date range filtering (1-365 days) and
+   * optional user email filter.
+   */
+  getAuditLog: protectedProcedure
+    .input(
+      z.object({
+        days: z.number().int().min(1).max(365).default(30),
+        userEmail: z.string().email().optional(),
+        limit: z.number().int().max(200).default(50),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      if (!ctx.facilityId) throw new TRPCError({ code: "FORBIDDEN" });
+      await requireAdmin(ctx);
+
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - input.days);
+
+      let query = ctx.supabase
+        .from("audit_log")
+        .select(
+          "id, facility_id, user_email, user_role, action, resource_type, resource_id, before_snapshot, after_snapshot, created_at",
+        )
+        .eq("facility_id", ctx.facilityId)
+        .gte("created_at", sinceDate.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(input.limit);
+
+      if (input.userEmail) {
+        query = query.eq("user_email", input.userEmail);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      return data ?? [];
     }),
 });
