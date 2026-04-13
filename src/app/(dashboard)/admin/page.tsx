@@ -18,6 +18,9 @@ import { NotificationPrefsCard } from "@/app/(dashboard)/admin/_components/Notif
 import { RetentionPolicyCard } from "@/app/(dashboard)/admin/_components/RetentionPolicyCard";
 import { CalendarFeedCard } from "@/app/(dashboard)/admin/_components/CalendarFeedCard";
 import { OrganizationCard } from "@/app/(dashboard)/admin/_components/OrganizationCard";
+import { SchedulingAreasCard } from "@/app/(dashboard)/admin/_components/SchedulingAreasCard";
+import { SchedulingEmployeesCard } from "@/app/(dashboard)/admin/_components/SchedulingEmployeesCard";
+import { SchedulingSettingsCard } from "@/app/(dashboard)/admin/_components/SchedulingSettingsCard";
 
 /**
  * Admin Control Center.
@@ -104,6 +107,9 @@ export default async function AdminPage() {
       <RefrigerationConfigCard />
       <AirQualityConfigCard />
       <PositionsCertificationsCard />
+      <SchedulingAreasCard />
+      <SchedulingEmployeesCard />
+      <SchedulingSettingsCard />
       <UserManagementCard />
       <ShiftConfigurationCard />
       <BrandingDisplayCard />
