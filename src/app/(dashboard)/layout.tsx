@@ -64,6 +64,7 @@ export default async function DashboardLayout({
     { label: "Air Quality", href: "/air-quality" },
     { label: "Incidents", href: "/incidents" },
     { label: "Scheduling", href: "/scheduling" },
+    { label: "My Schedule", href: "/my-schedule" },
     { label: "Communications", href: "/communications" },
     { label: "Reports", href: "/reports" },
     { label: "Billing", href: "/billing" },
