@@ -49,22 +49,22 @@ function timeAgo(isoDate: string): string {
  * or all notifications as read.
  */
 export function NotificationCenter() {
-  const notifications = trpc.scheduling.scheduleNotifications.listUnread.useQuery(
+  const notifications = trpc.scheduling.notifications.listUnread.useQuery(
     undefined,
     { refetchInterval: 30000 },
   );
   const utils = trpc.useUtils();
 
-  const markRead = trpc.scheduling.scheduleNotifications.markRead.useMutation({
+  const markRead = trpc.scheduling.notifications.markRead.useMutation({
     onSuccess: () => {
-      void utils.scheduling.scheduleNotifications.listUnread.invalidate();
+      void utils.scheduling.notifications.listUnread.invalidate();
     },
   });
 
   const markAllRead =
-    trpc.scheduling.scheduleNotifications.markAllRead.useMutation({
+    trpc.scheduling.notifications.markAllRead.useMutation({
       onSuccess: () => {
-        void utils.scheduling.scheduleNotifications.listUnread.invalidate();
+        void utils.scheduling.notifications.listUnread.invalidate();
       },
     });
 

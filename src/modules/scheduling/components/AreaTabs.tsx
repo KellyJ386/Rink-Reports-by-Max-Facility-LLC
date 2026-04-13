@@ -13,7 +13,7 @@ interface Props {
  * tab per active area. Managers also see an "All Areas" master tab.
  */
 export function AreaTabs({ activeAreaId, onAreaChange, isManager }: Props) {
-  const areas = trpc.scheduling.listAreas.useQuery();
+  const areas = trpc.scheduling.areas.list.useQuery();
 
   if (areas.isLoading) {
     return (

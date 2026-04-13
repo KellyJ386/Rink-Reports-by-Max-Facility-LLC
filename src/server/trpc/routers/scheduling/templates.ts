@@ -77,7 +77,7 @@ export const templateRouter = router({
       // 2. Get all shifts for the schedule
       const { data: shifts, error: shiftsErr } = await ctx.supabase
         .from("scheduling_shifts")
-        .select("id, position_id, start_at, end_at, notes, area_id")
+        .select("id, position_id, start_at, end_at, notes")
         .eq("schedule_id", schedule.id);
 
       if (shiftsErr) {
