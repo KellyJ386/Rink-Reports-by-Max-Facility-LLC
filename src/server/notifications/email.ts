@@ -3,7 +3,13 @@ import "server-only";
 import { Resend } from "resend";
 import type { Alert } from "@/lib/offline/types";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let _resend: Resend | null = null;
+function getResend(): Resend {
+  if (!_resend) {
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
 
 /**
  * Send an alert notification email via Resend.
@@ -19,7 +25,7 @@ export async function sendAlertEmail(opts: {
   const { to, alert, facilityName } = opts;
   const subject = `[${alert.severity.toUpperCase()}] ${alert.title} — ${facilityName}`;
   const body = renderEmailHtml(alert, facilityName);
-  await resend.emails.send({
+  await getResend().emails.send({
     from: process.env.RESEND_FROM_EMAIL ?? "alerts@rinkreports.app",
     to,
     subject,

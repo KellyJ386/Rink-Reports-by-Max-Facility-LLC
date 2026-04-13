@@ -11,33 +11,33 @@ import type { SchedulingArea } from "@/modules/scheduling/schema";
  */
 export function AreaManager() {
   const utils = trpc.useUtils();
-  const areas = trpc.scheduling.listAreas.useQuery();
+  const areas = trpc.scheduling.areas.list.useQuery();
 
-  const createArea = trpc.scheduling.createArea.useMutation({
+  const createArea = trpc.scheduling.areas.create.useMutation({
     onSuccess: () => {
-      utils.scheduling.listAreas.invalidate();
+      utils.scheduling.areas.list.invalidate();
       setNewAreaName("");
       setShowAdd(false);
     },
   });
 
-  const updateArea = trpc.scheduling.updateArea.useMutation({
+  const updateArea = trpc.scheduling.areas.update.useMutation({
     onSuccess: () => {
-      utils.scheduling.listAreas.invalidate();
+      utils.scheduling.areas.list.invalidate();
       setEditingId(null);
     },
   });
 
-  const deleteArea = trpc.scheduling.deleteArea.useMutation({
+  const deleteArea = trpc.scheduling.areas.delete.useMutation({
     onSuccess: () => {
-      utils.scheduling.listAreas.invalidate();
+      utils.scheduling.areas.list.invalidate();
       setConfirmDeleteId(null);
     },
   });
 
-  const reorderAreas = trpc.scheduling.reorderAreas.useMutation({
+  const reorderAreas = trpc.scheduling.areas.reorder.useMutation({
     onSuccess: () => {
-      utils.scheduling.listAreas.invalidate();
+      utils.scheduling.areas.list.invalidate();
     },
   });
 

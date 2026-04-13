@@ -19,25 +19,25 @@ interface Props {
  */
 export function TemplateManager({ weekIso, scheduleId, onClose }: Props) {
   const utils = trpc.useUtils();
-  const templates = trpc.scheduling.listTemplates.useQuery();
+  const templates = trpc.scheduling.templates.list.useQuery();
 
-  const saveTemplate = trpc.scheduling.saveTemplate.useMutation({
+  const saveTemplate = trpc.scheduling.templates.save.useMutation({
     onSuccess: () => {
-      utils.scheduling.listTemplates.invalidate();
+      utils.scheduling.templates.list.invalidate();
       setTemplateName("");
     },
   });
 
-  const loadTemplate = trpc.scheduling.loadTemplate.useMutation({
+  const loadTemplate = trpc.scheduling.templates.load.useMutation({
     onSuccess: () => {
       utils.scheduling.getScheduleForWeek.invalidate({ week_start: weekIso });
       onClose();
     },
   });
 
-  const deleteTemplate = trpc.scheduling.deleteTemplate.useMutation({
+  const deleteTemplate = trpc.scheduling.templates.delete.useMutation({
     onSuccess: () => {
-      utils.scheduling.listTemplates.invalidate();
+      utils.scheduling.templates.list.invalidate();
     },
   });
 

@@ -258,7 +258,7 @@ export const getScheduleForWeek = protectedProcedure
   }> => {
     const { data: schedule } = await ctx.supabase
       .from("scheduling_schedules")
-      .select("id, facility_id, week_start, status, created_by, published_at, is_locked")
+      .select("id, facility_id, week_start, status, created_by, published_at")
       .eq("facility_id", ctx.facilityId)
       .eq("week_start", input.week_start)
       .maybeSingle();
@@ -278,7 +278,7 @@ export const getScheduleForWeek = protectedProcedure
 
     const { data: shifts } = await ctx.supabase
       .from("scheduling_shifts")
-      .select("id, schedule_id, user_id, position_id, start_at, end_at, notes, is_mod, is_open, area_id, status")
+      .select("id, schedule_id, user_id, position_id, start_at, end_at, notes")
       .eq("schedule_id", schedule.id)
       .order("start_at", { ascending: true });
 

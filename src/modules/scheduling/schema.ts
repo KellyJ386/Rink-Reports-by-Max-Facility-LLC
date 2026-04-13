@@ -352,7 +352,7 @@ export const SchedulingNotificationSchema = z.object({
   facility_id: z.string().uuid(),
   event_type: z.string(),
   message: z.string(),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   is_read: z.boolean(),
   created_at: z.string(),
 });

@@ -388,8 +388,8 @@ export function ScheduleEditorLayer({ weekIso }: Props) {
           <ul className="mt-3 flex flex-col divide-y divide-grey/20 text-sm">
             {shifts.map((s) => {
               const pos = positionById.get(s.position_id);
-              const user = userById.get(s.user_id);
-              const warn = isCertWarning(s.user_id, s.position_id);
+              const user = s.user_id ? userById.get(s.user_id) : undefined;
+              const warn = s.user_id ? isCertWarning(s.user_id, s.position_id) : false;
               return (
                 <li
                   key={s.id}
@@ -453,7 +453,7 @@ export function ScheduleEditorLayer({ weekIso }: Props) {
         <ReviewPublishModal
           shifts={shifts.map((s) => ({
             id: s.id,
-            label: `${positionById.get(s.position_id)?.name ?? "?"} · ${userById.get(s.user_id)?.full_name ?? "?"}`,
+            label: `${positionById.get(s.position_id)?.name ?? "?"} · ${(s.user_id ? userById.get(s.user_id) : undefined)?.full_name ?? "?"}`,
             when: `${dayLabel(new Date(s.start_at))} ${new Date(s.start_at).toLocaleTimeString()} – ${new Date(s.end_at).toLocaleTimeString()}`,
           }))}
           onClose={() => setShowReview(false)}

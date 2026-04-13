@@ -139,7 +139,7 @@ export function LiveBoardLayer({ weekIso, isManager }: Props) {
                 <ul className="mt-2 flex flex-col gap-1 text-xs">
                   {dayShifts.map((s) => {
                     const pos = positionById.get(s.position_id);
-                    const user = userById.get(s.user_id);
+                    const user = s.user_id ? userById.get(s.user_id) : undefined;
                     const isMine = me.data && s.user_id === me.data.user_id;
                     return (
                       <li

@@ -13,21 +13,21 @@ import type { SchedulingEmployee, EmploymentType } from "@/modules/scheduling/sc
  */
 export function EmployeeManager() {
   const utils = trpc.useUtils();
-  const employees = trpc.scheduling.listEmployees.useQuery();
-  const areas = trpc.scheduling.listAreas.useQuery();
+  const employees = trpc.scheduling.employees.list.useQuery();
+  const areas = trpc.scheduling.areas.list.useQuery();
   const roster = trpc.scheduling.listRoster.useQuery();
 
-  const createEmployee = trpc.scheduling.createEmployee.useMutation({
+  const createEmployee = trpc.scheduling.employees.create.useMutation({
     onSuccess: () => {
-      utils.scheduling.listEmployees.invalidate();
+      utils.scheduling.employees.list.invalidate();
       setShowAdd(false);
       resetForm();
     },
   });
 
-  const updateEmployee = trpc.scheduling.updateEmployee.useMutation({
+  const updateEmployee = trpc.scheduling.employees.update.useMutation({
     onSuccess: () => {
-      utils.scheduling.listEmployees.invalidate();
+      utils.scheduling.employees.list.invalidate();
       setEditingId(null);
     },
   });
